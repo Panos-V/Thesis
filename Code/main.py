@@ -78,7 +78,7 @@ embedding_dim = 64
 num_embeddings = 2056
 commitment_cost = 0.5
 decay = 0.99
-learning_rate = 1e-3
+learning_rate = 1e-4
     
 
 
@@ -110,7 +110,7 @@ else:
     image = im
     
     imshow(make_grid(image[:32]))
-    
+
     _,recon,_ = model(im)
     
     imshow(make_grid(recon[:32]))
@@ -119,7 +119,7 @@ f = simple_classifier.classifier(64*7*7, num_classes)
 
 f_optimizer = optim.SGD(f.parameters(),lr = 1e-2)
 f_criterion = nn.CrossEntropyLoss()
-epochs_f = 100
+epochs_f = 50
 
 if Train_f:
     simple_classifier.train_classifier(model,f,

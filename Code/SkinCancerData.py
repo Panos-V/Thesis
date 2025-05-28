@@ -5,7 +5,7 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset, DataLoader
 import os
-
+from torchvision.transforms import transforms
 
 def imshow(img):
     img = img / 2 + 0.5  # unnormalize
@@ -22,35 +22,31 @@ class CustomDataset(Dataset):
         return len(self.csv)
     
     def __getitem__(self, index):
-        path = os.path.join('archive/SkinCancer',str(self.csv.iloc[index].iloc[1] + '.jpg'))
+        path = os.path.join('archive/train',str(self.csv.iloc[index].iloc[0] + '.jpg'))
         image = Image.open(path)
-        label = self.csv.iloc[index].iloc[5]
+        label = self.csv.iloc[index].iloc[7]
         if self.transform:
             image = self.transform(image)
-        if label == 'male':
-            label = 0
-        else:
-            label = 1
             
         label = torch.tensor(label)
         
         return image,label,label
     
 
-def CreateLoader(path,transform,batch_size,train = True):
-    data = CustomDataset(path,transform=transform)    
-    loader = DataLoader(data,batch_size=batch_size, shuffle = train)
+def CreateLoader(path,transform,batch_size,train = True,tmp = True):
+    data = CustomDataset(path,transform=transform)   
+    if tmp:
+        _,train, test = torch.utils.data.random_split(data, [0.8, 0.1,0.1])
+        loader = DataLoader(train,batch_size=batch_size, shuffle = train)
+    else:
+        loader = DataLoader(data,batch_size=batch_size, shuffle = train)
     return loader
     
     
 
-# path = "archive/metadata.csv"
-# data = CustomDataset(path)
-
-
 # transform = transforms.Compose([transforms.ToTensor(),
 #                                 transforms.ToPILImage()])
-# im , _ = data[0]
+# im , _ , _ = data[0]
 
 # img = transform(im)
 # print(type(img))
