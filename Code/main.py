@@ -54,7 +54,7 @@ transform = transforms.Compose([
 # validation_data = datasets.MNIST(root="data", train=False, download=True,
 #                                   transform = transform)
 
-batch_size = 64
+batch_size = 128
 
 colored_train = ColorMnist.get_biased_mnist_dataloader("coloredmnist_data", batch_size,1,num_workers=0)
 colored_test = ColorMnist.get_biased_mnist_dataloader("coloredmnist_data", batch_size,1,train = False,num_workers=0)
@@ -65,7 +65,7 @@ skin_train = SkinCancerData.CreateLoader(path, transform, batch_size)
 skin_test = SkinCancerData.CreateLoader(path, transform, batch_size, train = False)
 
 num_classes = 2
-ALPHA = 0.03
+ALPHA = 0.07
 TRAIN = False
 Train_f = False
 

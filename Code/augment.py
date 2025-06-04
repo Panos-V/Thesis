@@ -47,7 +47,7 @@ class CustomDataset(Dataset):
 
 transform = transforms.Compose([
     transforms.ToPILImage(),
-    transforms.Resize((128,128)),
+    transforms.Resize((512,512)),
     #transforms.RandomCrop((28,28)),
     transforms.RandomHorizontalFlip(p=0.5),
     transforms.RandomVerticalFlip(p=0.05),

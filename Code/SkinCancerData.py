@@ -33,14 +33,13 @@ class CustomDataset(Dataset):
         return image,label,label
     
 
-def CreateLoader(path,transform,batch_size,train = True,tmp = True):
+def CreateLoader(path,transform,batch_size):
     data = CustomDataset(path,transform=transform)   
-    if tmp:
-        _,train, test = torch.utils.data.random_split(data, [0.8, 0.1,0.1])
-        loader = DataLoader(train,batch_size=batch_size, shuffle = train)
-    else:
-        loader = DataLoader(data,batch_size=batch_size, shuffle = train)
-    return loader
+    train, test = torch.utils.data.random_split(data, [0.8, 0.2])
+    train_loader = DataLoader(train,batch_size=batch_size, shuffle = True)
+    test_loader = DataLoader(data,batch_size=batch_size, shuffle = False)
+    
+    return train_loader,test_loader
     
     
 
