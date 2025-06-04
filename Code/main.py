@@ -44,7 +44,7 @@ def adversarial_walk(f,h,a,model,steps = 4):
   
 transform = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Resize((28,28))
+    transforms.Resize((1024,1024))
     ])
 
 
