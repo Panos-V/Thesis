@@ -161,9 +161,9 @@ class VectorQuantizer(nn.Module):
     
     
 class model(nn.Module):
-    def __init__(self,num_hiddens,num_residual_layers,num_residual_hiddens,num_embeddings,embedding_dim,commitment_cost):
+    def __init__(self,num_hiddens,num_residual_layers,num_residual_hiddens,num_embeddings,embedding_dim,commitment_cost,device):
         super(model,self).__init__()
-        
+        self.device = device
         self.encoder = encoder(3, num_hiddens,num_residual_layers,num_residual_hiddens)
         
         self.pre_vq_conv = nn.Conv2d(in_channels=num_hiddens,
@@ -192,6 +192,8 @@ def train_model(model,epochs,optimizer,criterion,dataloader):
         progress_bar = tqdm(dataloader,desc = f"Epoch {epoch_idx+1}", unit="batch")
         total_loss = 0
         for im,label,_ in progress_bar:
+            im = im.to(model.device)
+            label = label.to(model.device)
             optimizer.zero_grad()
     
             vq_loss, data_recon , perplexity = model(im)

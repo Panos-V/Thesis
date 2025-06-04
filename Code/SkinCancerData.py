@@ -14,15 +14,17 @@ def imshow(img):
     plt.show()
 
 class CustomDataset(Dataset):
-    def __init__(self,csv,transform=None):
-        self.csv = pd.read_csv(csv)
+    def __init__(self,path,transform=None):
+        self.path = path
+        self.csv_path = path + "metadata.csv"
+        self.csv = pd.read_csv(self.csv_path)
         self.transform = transform
         
     def __len__(self):
         return len(self.csv)
     
     def __getitem__(self, index):
-        path = os.path.join('archive/train',str(self.csv.iloc[index].iloc[0] + '.jpg'))
+        path = os.path.join(str(self.path) + 'train/' + str(self.csv.iloc[index].iloc[0] + '.jpg'))
         image = Image.open(path)
         label = self.csv.iloc[index].iloc[7]
         if self.transform:

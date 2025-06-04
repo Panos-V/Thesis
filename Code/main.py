@@ -54,20 +54,20 @@ transform = transforms.Compose([
 # validation_data = datasets.MNIST(root="data", train=False, download=True,
 #                                   transform = transform)
 
-batch_size = 128
+batch_size = 6
 
 colored_train = ColorMnist.get_biased_mnist_dataloader("coloredmnist_data", batch_size,1,num_workers=0)
 colored_test = ColorMnist.get_biased_mnist_dataloader("coloredmnist_data", batch_size,1,train = False,num_workers=0)
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+path = "Code/archive/"
+skin_train,skin_test = SkinCancerData.CreateLoader(path, transform, batch_size)
 
-path = "archive/metadata.csv"
-skin_train = SkinCancerData.CreateLoader(path, transform, batch_size)
-skin_test = SkinCancerData.CreateLoader(path, transform, batch_size, train = False)
 
 num_classes = 2
 ALPHA = 0.07
-TRAIN = False
-Train_f = False
+TRAIN = True
+Train_f = True
 
 epochs = 100
 
@@ -94,7 +94,7 @@ learning_rate = 1e-4
 
 
 model = vq_vae.model(num_hiddens,num_residual_layers,num_residual_hiddens,num_embeddings, embedding_dim, 
-              commitment_cost)
+              commitment_cost,device).to(device)
     
 optimizer = optim.Adam(model.parameters(), lr=learning_rate, amsgrad=False)
 criterion = torch.nn.MSELoss()
@@ -115,7 +115,7 @@ else:
     
     imshow(make_grid(recon[:32]))
 
-f = simple_classifier.classifier(64*7*7, num_classes)
+f = simple_classifier.classifier(64*7*7, num_classes,device).to(device)
 
 f_optimizer = optim.SGD(f.parameters(),lr = 1e-2)
 f_criterion = nn.CrossEntropyLoss()
@@ -124,7 +124,7 @@ epochs_f = 50
 if Train_f:
     simple_classifier.train_classifier(model,f,
                                        epochs_f, f_optimizer,
-                                       f_criterion, skin_train)
+                                       f_criterion, skin_train,device)
 
 
 else:

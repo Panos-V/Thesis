@@ -6,8 +6,9 @@ from tqdm import tqdm
 
 
 class classifier(nn.Module):
-    def __init__(self,in_channels,num_classes):
+    def __init__(self,in_channels,num_classes,device):
         super(classifier,self).__init__()
+        self.device = device
         self.fc1 = nn.Linear(in_channels, 100)
         self.fc2 = nn.Linear(100,num_classes)
         
@@ -26,6 +27,8 @@ def train_classifier(model,classifier,epochs,optimizer,criterion,dataloader):
         progress2 = tqdm(dataloader,desc = f"Epoch {step+1}", unit="batch")
         total_loss = 0
         for im,label,_ in progress2:
+            im = im.to(model.device)
+            label = label.to(model.device)
             with torch.no_grad():    
                 h = model.encoder(im)
                 h = model.pre_vq_conv(h)
