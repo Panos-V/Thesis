@@ -66,10 +66,10 @@ skin_train,skin_test = SkinCancerData.CreateLoader(path, transform, batch_size)
 
 num_classes = 2
 ALPHA = 0.07
-TRAIN = True
+TRAIN = False
 Train_f = True
 
-epochs = 100
+epochs = 10
 
 num_hiddens = 512
 num_residual_hiddens = 32
@@ -106,16 +106,18 @@ else:
     model.load_state_dict(torch.load("vqvae.pth",weights_only=False))
     
     (im,label,_) = next(iter(skin_test))
+
     
-    image = im
-    
+    image = im.to(device)
+    label = label.to(device) 
+    """    
     imshow(make_grid(image[:32]))
 
     _,recon,_ = model(im)
     
-    imshow(make_grid(recon[:32]))
+    imshow(make_grid(recon[:32])) """
 
-f = simple_classifier.classifier(64*7*7, num_classes,device).to(device)
+f = simple_classifier.classifier(64*256*256, num_classes,device).to(device)
 
 f_optimizer = optim.SGD(f.parameters(),lr = 1e-2)
 f_criterion = nn.CrossEntropyLoss()
@@ -124,7 +126,7 @@ epochs_f = 50
 if Train_f:
     simple_classifier.train_classifier(model,f,
                                        epochs_f, f_optimizer,
-                                       f_criterion, skin_train,device)
+                                       f_criterion, skin_train)
 
 
 else:

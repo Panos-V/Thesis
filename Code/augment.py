@@ -47,8 +47,7 @@ class CustomDataset(Dataset):
 
 transform = transforms.Compose([
     transforms.ToPILImage(),
-    transforms.Resize((512,512)),
-    #transforms.RandomCrop((28,28)),
+    transforms.Resize((1024,1024)),
     transforms.RandomHorizontalFlip(p=0.5),
     transforms.RandomVerticalFlip(p=0.05),
     transforms.RandomApply([transforms.ColorJitter(brightness=0.5,contrast=0.5,saturation=0.5)],p=0.5),
