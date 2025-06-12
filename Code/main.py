@@ -121,7 +121,7 @@ f = simple_classifier.classifier(64*256*256, num_classes,device).to(device)
 
 f_optimizer = optim.SGD(f.parameters(),lr = 1e-2)
 f_criterion = nn.CrossEntropyLoss()
-epochs_f = 50
+epochs_f = 20
 
 if Train_f:
     simple_classifier.train_classifier(model,f,
