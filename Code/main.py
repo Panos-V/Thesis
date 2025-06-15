@@ -14,22 +14,23 @@ import SkinCancerData
 
 def imshow(img):
     img = img / 2 + 0.5  # unnormalize
-    npimg = img.numpy()
+    npimg = img.numpy(force = True)
     plt.imshow(np.transpose(npimg, (1, 2, 0)))
     plt.axis('off')
     plt.show()
 
-def adversarial_walk(f,h,a,model,steps = 4):
+def adversarial_walk(f,h,a,model,device,steps = 10):    #h = latent representations f = classifier
     h_delta = h.clone().detach().requires_grad_(True)
 
-    e = 1e-6
+    e = 1e-12
     for _ in range(steps):
 
         prediction = f(h_delta)
+        print(prediction)
 
         entropy = -torch.special.entr(prediction).sum(dim=1).mean()
 
-        gradient = torch.autograd.grad(entropy, h_delta)[0]
+        gradient = torch.autograd.grad(entropy, h_delta,retain_graph = True)[0]
         
         delta = (gradient - gradient.mean()) / gradient.std() + e        
         h_delta = h_delta + a*delta
@@ -37,11 +38,12 @@ def adversarial_walk(f,h,a,model,steps = 4):
         _,h_delta,perplexity,_ = model.vq(h_delta)
         h_delta = h_delta.requires_grad_(True)
 
+    #print(h_delta)
 
     return h_delta,perplexity
 
 
-  
+
 transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Resize((1024,1024))
@@ -64,10 +66,10 @@ path = "Code/archive/"
 skin_train,skin_test = SkinCancerData.CreateLoader(path, transform, batch_size)
 
 
-num_classes = 2
-ALPHA = 0.07
+
+ALPHA = 0.1
 TRAIN = False
-Train_f = True
+Train_f = False
 
 epochs = 10
 
@@ -117,10 +119,10 @@ else:
     
     imshow(make_grid(recon[:32])) """
 
-f = simple_classifier.classifier(64*256*256, num_classes,device).to(device)
+f = simple_classifier.classifier(64*256*256,device).to(device)
 
 f_optimizer = optim.SGD(f.parameters(),lr = 1e-2)
-f_criterion = nn.CrossEntropyLoss()
+f_criterion = nn.BCEWithLogitsLoss()
 epochs_f = 20
 
 if Train_f:
@@ -135,14 +137,18 @@ else:
     model.eval()
     
     (im,label,_) = next(iter(skin_test))
-    
-    image = im
-    
-    imshow(make_grid(image[:32]))
+    image = im.to(device)
+    label = label.to(device)
+    images = make_grid(image[:])
     
     h = model.encoder(image)
     h = model.pre_vq_conv(h)
-    output,perplexity = adversarial_walk(f, h, ALPHA,model)
+    output,perplexity = adversarial_walk(f, h, ALPHA,model,device)
     recon = model.decoder(output)
     
-    imshow(make_grid(recon[:32]))
+    outputs = make_grid(recon[:32])
+
+    to_PIL = transforms.ToPILImage()
+
+    outputs = to_PIL(outputs)
+    outputs.save('outputs.png')

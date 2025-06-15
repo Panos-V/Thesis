@@ -6,11 +6,11 @@ from tqdm import tqdm
 
 
 class classifier(nn.Module):
-    def __init__(self,in_channels,num_classes,device):
+    def __init__(self,in_channels,device):
         super(classifier,self).__init__()
         self.device = device
         self.fc1 = nn.Linear(in_channels, 100)
-        self.fc2 = nn.Linear(100,num_classes)
+        self.fc2 = nn.Linear(100,1)
         
     def forward(self,x):
         x = torch.flatten(x,1)
@@ -18,9 +18,9 @@ class classifier(nn.Module):
         x = F.relu(self.fc1(x))
         x = self.fc2(x)
 
-        x = F.softmax(x,dim=-1)
+
         
-        return x
+        return F.sigmoid(x)
     
 def train_classifier(model,classifier,epochs,optimizer,criterion,dataloader):
     for step in range(epochs):
@@ -28,12 +28,12 @@ def train_classifier(model,classifier,epochs,optimizer,criterion,dataloader):
         total_loss = 0
         for im,label,_ in progress2:
             im = im.to(model.device)
-            label = label.to(model.device)
+            label = label.float().to(model.device)
             with torch.no_grad():    
                 h = model.encoder(im)
                 h = model.pre_vq_conv(h)
     
-            y = classifier(h)
+            y = classifier(h).squeeze(1)
     
             loss = criterion(y,label)
             
