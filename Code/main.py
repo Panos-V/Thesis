@@ -19,21 +19,24 @@ def imshow(img):
     plt.axis('off')
     plt.show()
 
-def adversarial_walk(f,h,a,model,device,steps = 3):    #h = latent representations f = classifier
+def adversarial_walk(f,h,a,model,device,steps = 10):    #h = latent representations f = classifier
     h_delta = h.clone().detach().requires_grad_(True).to(device)
 
-    e = 1e-12
-    for _ in range(steps):
+    e = 1e-8
+    for i in range(steps):
 
         prediction = f(h_delta)
         entropy = -torch.special.entr(prediction).sum(dim=1).mean()
 
         gradient = torch.autograd.grad(entropy, h_delta)[0]
 
-        delta = (gradient - gradient.mean()) / gradient.std() + e    
+        delta = (gradient - gradient.mean()) / (gradient.std() + e)    
+        delta = torch.clamp(delta, -1.0, 1.0)
         h_delta = h_delta + a*delta
-        h_delta = h_delta.to(device)
+
         _,h_delta,perplexity,_ = model.vq(h_delta)
+        print(f"Step {i}: gradient mean {gradient.mean():.3e}, std {gradient.std():.3e}")
+        
         h_delta = h_delta.requires_grad_(True)
 
     #print(h_delta)
@@ -54,7 +57,7 @@ transform = transforms.Compose([
 # validation_data = datasets.MNIST(root="data", train=False, download=True,
 #                                   transform = transform)
 
-batch_size = 6
+batch_size = 32
 
 colored_train = ColorMnist.get_biased_mnist_dataloader("coloredmnist_data", batch_size,1,num_workers=0)
 colored_test = ColorMnist.get_biased_mnist_dataloader("coloredmnist_data", batch_size,1,train = False,num_workers=0)
@@ -65,9 +68,9 @@ skin_train,skin_test = SkinCancerData.CreateLoader(path, transform, batch_size)
 
 
 
-ALPHA = 0.041
+ALPHA = 0.07
 TRAIN = False
-Train_f = False
+Train_f = True
 
 epochs = 5
 
@@ -80,17 +83,6 @@ commitment_cost = 0.5
 decay = 0.99
 learning_rate = 1e-4
     
-
-
-# training_loader = DataLoader(training_data, 
-#                              batch_size=batch_size, 
-#                              shuffle=True,
-#                              pin_memory=True) 
-    
-# validation_loader = DataLoader(validation_data,
-#                                batch_size=43,
-#                                shuffle=True,
-#                                pin_memory=True)
 
 
 model = vq_vae.model(num_hiddens,num_residual_layers,num_residual_hiddens,num_embeddings, embedding_dim, 
