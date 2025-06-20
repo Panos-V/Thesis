@@ -19,7 +19,7 @@ def imshow(img):
     plt.axis('off')
     plt.show()
 
-def adversarial_walk(f,h,a,model,device,steps = 10):    #h = latent representations f = classifier
+def adversarial_walk(f,h,a,model,device,steps = 5):    #h = latent representations f = classifier
     h_delta = h.clone().detach().requires_grad_(True).to(device)
 
     e = 1e-8
@@ -31,7 +31,7 @@ def adversarial_walk(f,h,a,model,device,steps = 10):    #h = latent representati
         gradient = torch.autograd.grad(entropy, h_delta)[0]
 
         delta = (gradient - gradient.mean()) / (gradient.std() + e)    
-        delta = torch.clamp(delta, -1.0, 1.0)
+        #delta = torch.clamp(delta, -1.0, 1.0)
         h_delta = h_delta + a*delta
 
         _,h_delta,perplexity,_ = model.vq(h_delta)
@@ -70,7 +70,7 @@ skin_train,skin_test = SkinCancerData.CreateLoader(path, transform, batch_size)
 
 ALPHA = 0.07
 TRAIN = False
-Train_f = True
+Train_f = False
 
 epochs = 5
 
@@ -129,14 +129,14 @@ else:
     (im,label,_) = next(iter(skin_test))
     image = im.to(device)
     label = label.to(device)
-    images = make_grid(image[:])
+    images = make_grid(image[:32])
 
     h = model.encoder(image)
     h = model.pre_vq_conv(h)
     output,perplexity = adversarial_walk(f, h, ALPHA,model,device)
     recon = model.decoder(output)
     
-    outputs = make_grid(recon[:])
+    outputs = make_grid(recon[:32])
 
     to_PIL = transforms.ToPILImage()
 
