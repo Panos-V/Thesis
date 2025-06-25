@@ -78,7 +78,7 @@ for _ in range(30):
         path = 'Code/augmented/ISIC_AUGMENTATION_'+str(img_num)+'.jpg'
         save_image(img, path)
         df = pd.concat([pd.DataFrame([[
-            'ISIC_AUGMENTATION_' + str(img_num)+'.jpg',
+            'ISIC_AUGMENTATION_' + str(img_num),
             'augment',
             'male',
             '40',
