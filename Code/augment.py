@@ -90,4 +90,4 @@ for _ in range(30):
         
         img_num += 1
 
-df.to_csv('metadata_with_augments.csv',index=False)
+df.to_csv('Code/archive/metadata_with_augments.csv',index=False)
