@@ -55,27 +55,24 @@ class CustomDataset(Dataset):
 
 transform = transforms.Compose([
     transforms.ToPILImage(),
-    transforms.Resize((1024,1024)),
+    transforms.Resize((256,256)),
     transforms.RandomHorizontalFlip(p=0.5),
     transforms.RandomVerticalFlip(p=0.05),
     transforms.RandomApply([transforms.ColorJitter(brightness=0.5,contrast=0.5,saturation=0.5)],p=0.5),
-    transforms.RandomApply([transforms.RandomRotation(degrees=10)],p=1),
+    transforms.RandomApply([transforms.RandomRotation(degrees=10)],p=0.5),
     transforms.RandomApply([transforms.GaussianBlur(3)],p=0.5)
     ])
 
-df = pd.read_csv('Code/archive/metadata.csv')
+df = pd.read_csv('Code/archive/original.csv')
+print(df)
 augment = df[df['target'] == 1]
 augment.to_csv('Code/archive/augment.csv',index=False)
 
 dataset = CustomDataset('Code/archive/augment.csv',transform = transform)
 
 
-
-
-
-
 img_num = 0
-for _ in range(20):
+for _ in range(30):
     print('a')
     for img, label in dataset:
         path = 'Code/augmented/ISIC_AUGMENTATION_'+str(img_num)+'.jpg'
@@ -93,4 +90,4 @@ for _ in range(20):
         
         img_num += 1
 
-df.to_csv('info.csv',index=False)
+df.to_csv('metadata_with_augments.csv',index=False)

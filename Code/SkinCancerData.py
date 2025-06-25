@@ -16,7 +16,7 @@ def imshow(img):
 class CustomDataset(Dataset):
     def __init__(self,path,transform=None):
         self.path = path
-        self.csv_path = path + "metadata.csv"
+        self.csv_path = path + "metadata_with_augments.csv"
         self.csv = pd.read_csv(self.csv_path)
         self.transform = transform
         
