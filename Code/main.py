@@ -19,10 +19,10 @@ def imshow(img):
     plt.axis('off')
     plt.show()
 
-def adversarial_walk(f,h,a,model,device,steps = 6):    #h = latent representations f = classifier
+def adversarial_walk(f,h,a,model,device,steps = 4):    #h = latent representations f = classifier
     h_delta = h.clone().detach().requires_grad_(True).to(device)
 
-    e = 1e-8
+    e = 1e-6
     for i in range(steps):
 
         prediction = f(h_delta)
@@ -51,12 +51,6 @@ transform = transforms.Compose([
     ])
 
 
-# training_data = datasets.MNIST(root="data", train=True, download=True,
-#                                   transform = transform)
-
-# validation_data = datasets.MNIST(root="data", train=False, download=True,
-#                                   transform = transform)
-
 batch_size = 32
 
 colored_train = ColorMnist.get_biased_mnist_dataloader("coloredmnist_data", batch_size,1,num_workers=0)
@@ -68,17 +62,17 @@ skin_train,skin_test = SkinCancerData.CreateLoader(path, transform, batch_size)
 
 
 
-ALPHA = 0.1
-TRAIN = True
+ALPHA = 0.07
+TRAIN = False
 Train_f = True
 
-epochs = 5
+epochs = 10
 
 num_hiddens = 512
 num_residual_hiddens = 32
 num_residual_layers = 4
-embedding_dim = 64
-num_embeddings = 2056
+embedding_dim = 256
+num_embeddings = 4096
 commitment_cost = 0.5
 decay = 0.99
 learning_rate = 1e-4
@@ -109,11 +103,11 @@ else:
     
     imshow(make_grid(recon[:32])) """
 
-f = simple_classifier.classifier(f_neurons*f_neurons*f_neurons,device).to(device)
+f = simple_classifier.classifier(256*64*64,device).to(device)   #embdeding dimension X Height/4 X Width/4
 
 f_optimizer = optim.SGD(f.parameters(),lr = 1e-2)
 f_criterion = nn.BCEWithLogitsLoss()
-epochs_f = 5
+epochs_f = 10
 
 if Train_f:
     simple_classifier.train_classifier(model,f,

@@ -1,3 +1,4 @@
-redo the augmentations
+redo the augmentations  DONE
+create new branches each with different model settings
 train a resnet on the augmented images
 train a resnet on the original images
