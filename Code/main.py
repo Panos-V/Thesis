@@ -69,8 +69,8 @@ skin_train,skin_test = SkinCancerData.CreateLoader(path, transform, batch_size)
 
 
 ALPHA = 0.1
-TRAIN = True
-Train_f = True
+TRAIN = False
+Train_f = False
 
 epochs = 5
 
