@@ -66,6 +66,7 @@ ALPHA = 0.07
 TRAIN = False
 Train_f = True
 
+
 epochs = 10
 
 num_hiddens = 512
