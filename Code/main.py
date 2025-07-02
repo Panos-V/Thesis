@@ -97,12 +97,17 @@ else:
     
     image = im.to(device)
     label = label.to(device) 
-    """    
-    imshow(make_grid(image[:32]))
+    to_PIL = transforms.ToPILImage()
 
-    _,recon,_ = model(im)
+    _,recon,_ = model(image)
     
-    imshow(make_grid(recon[:32])) """
+    images = make_grid(image[:32])
+    outputs = make_grid(recon[:32])
+
+    images = to_PIL(images)
+    images.save('original2.png')
+    outputs = to_PIL(outputs)
+    outputs.save('recons.png')
 
 f = simple_classifier.classifier(256*64*64,device).to(device)   #embdeding dimension X Height/4 X Width/4
 
