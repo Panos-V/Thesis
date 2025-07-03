@@ -5,3 +5,5 @@ classifier.pth
 Code/classifier.pth
 original.png
 outputs.png
+recons.png
+original2.png
