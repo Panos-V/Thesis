@@ -207,7 +207,7 @@ def train_model(model,epochs,optimizer,criterion,dataloader):
             
             optimizer.step()
             
-            progress_bar.set_postfix({"loss": f"{total_loss.item():.4f}"},refresh=True)
+            progress_bar.set_postfix({"loss": f"{loss.item():.4f}"},refresh=True)
         print(f"Average loss for epoch {epoch_idx+1}: {total_loss/len(dataloader)}")
     
     torch.save(model.state_dict(), "vqvae.pth")

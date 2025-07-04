@@ -62,8 +62,8 @@ skin_train,skin_test = SkinCancerData.CreateLoader(path, transform, batch_size)
 
 
 
-ALPHA = 0.0001
-TRAIN = False
+ALPHA = 0.007
+TRAIN = True
 Train_f = False
 
 
@@ -74,7 +74,7 @@ num_residual_hiddens = 32
 num_residual_layers = 4
 embedding_dim = 256
 num_embeddings = 4096
-commitment_cost = 0.5
+commitment_cost = 0.25
 decay = 0.99
 learning_rate = 1e-4
 f_neurons = int(num_hiddens / 8)
