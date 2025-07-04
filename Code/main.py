@@ -109,7 +109,7 @@ else:
     
     imshow(make_grid(recon[:32])) """
 
-f = simple_classifier.classifier(f_neurons*f_neurons*f_neurons,device).to(device)
+f = simple_classifier.classifier(embedding_dim*64*64).to(device)
 
 f_optimizer = optim.SGD(f.parameters(),lr = 1e-2)
 f_criterion = nn.BCEWithLogitsLoss()
