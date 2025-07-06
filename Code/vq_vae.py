@@ -190,6 +190,8 @@ class model(nn.Module):
     
 def train_model(model,epochs,optimizer,criterion,dataloader):
     model.train()
+
+    scaler = torch.amp.GradScaler()
     for epoch_idx in range(epochs):
     
         progress_bar = tqdm(dataloader,desc = f"Epoch {epoch_idx+1}", unit="batch")
@@ -200,18 +202,21 @@ def train_model(model,epochs,optimizer,criterion,dataloader):
             im = im.to(model.device)
             label = label.to(model.device)
             optimizer.zero_grad()
-    
-            vq_loss, data_recon , perplexity = model(im)
-            recon_loss = criterion(data_recon,im)
+
+            with torch.amp.autocast("cuda"):
+                vq_loss, data_recon , perplexity = model(im)
+                recon_loss = criterion(data_recon,im)
+                loss = recon_loss + vq_loss
+
+
+            scaler.scale(loss).backward()
             
-            loss = recon_loss + vq_loss
+            scaler.step(optimizer)
+            scaler.update()
             
-            total_loss += loss
-            total_perp += perplexity
-            loss.backward()
-            
-            optimizer.step()
-            
+            total_loss += loss.item()
+            total_perp += perplexity.item()
+
             progress_bar.set_postfix({"loss": f"{loss.item():.4f}","Perplexity": f"{perplexity.item():.4f}"},refresh=True)
         print(f"Average loss for epoch {epoch_idx+1}: {total_loss/len(dataloader)}")
         print(f"Average perplexity for epoch {epoch_idx+1}: {total_perp/len(dataloader)}")

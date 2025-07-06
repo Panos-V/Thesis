@@ -23,25 +23,27 @@ class classifier(nn.Module):
         return F.sigmoid(x)
     
 def train_classifier(model,classifier,epochs,optimizer,criterion,dataloader):
+    scaler = torch.amp.GradScaler()
     for step in range(epochs):
         progress2 = tqdm(dataloader,desc = f"Epoch {step+1}", unit="batch")
         total_loss = 0
         for im,label,_ in progress2:
             im = im.to(model.device)
             label = label.float().to(model.device)
+            optimizer.zero_grad()
             with torch.no_grad():    
                 h = model.encoder(im)
                 h = model.pre_vq_conv(h)
-    
-            y = classifier(h).squeeze(1)
-    
-            loss = criterion(y,label)
-            
-            total_loss += loss
-            
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+            with torch.amp.autocast("cuda"):
+                y = classifier(h).squeeze(1)
+                loss = criterion(y,label)
+            scaler.scale(loss).backward()
+
+            # AMP: Unscales the gradients and performs optimization
+            scaler.step(optimizer)
+            scaler.update()
+
+            total_loss += loss.item()
             
             progress2.set_postfix({"loss": f"{loss.item():.4f}"},refresh=True)
         

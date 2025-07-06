@@ -51,9 +51,9 @@ transform = transforms.Compose([
     ])
 
 
-batch_size = 64
+batch_size = 128
 
-colored_train = ColorMnist.get_biased_mnist_dataloader("coloredmnist_data", batch_size,1,num_workers=0)
+colored_train = ColorMnist.get_biased_mnist_dataloader("coloredmnist_data", batch_size,1,num_workers=4)
 colored_test = ColorMnist.get_biased_mnist_dataloader("coloredmnist_data", batch_size,1,train = False,num_workers=0)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -67,7 +67,7 @@ TRAIN = True
 Train_f = True
 
 
-epochs = 20
+epochs = 30
 
 num_hiddens = 512
 num_residual_hiddens = 32
@@ -76,8 +76,8 @@ embedding_dim = 64
 num_embeddings = 512
 commitment_cost = 0.25
 decay = 0.99
-learning_rate = 1e-4
-f_neurons = int(num_hiddens / 8)
+learning_rate = 0.0001
+
 
 
 model = vq_vae.model(num_hiddens,num_residual_layers,num_residual_hiddens,num_embeddings, embedding_dim, 
