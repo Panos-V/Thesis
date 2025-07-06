@@ -51,7 +51,7 @@ transform = transforms.Compose([
     ])
 
 
-batch_size = 32
+batch_size = 64
 
 colored_train = ColorMnist.get_biased_mnist_dataloader("coloredmnist_data", batch_size,1,num_workers=0)
 colored_test = ColorMnist.get_biased_mnist_dataloader("coloredmnist_data", batch_size,1,train = False,num_workers=0)
@@ -62,18 +62,18 @@ skin_train,skin_test = SkinCancerData.CreateLoader(path, transform, batch_size)
 
 
 
-ALPHA = 0.007
+ALPHA = 0.001
 TRAIN = True
-Train_f = False
+Train_f = True
 
 
-epochs = 10
+epochs = 20
 
 num_hiddens = 512
 num_residual_hiddens = 32
-num_residual_layers = 4
-embedding_dim = 256
-num_embeddings = 4096
+num_residual_layers = 2
+embedding_dim = 64
+num_embeddings = 512
 commitment_cost = 0.25
 decay = 0.99
 learning_rate = 1e-4
@@ -109,7 +109,7 @@ else:
     outputs = to_PIL(outputs)
     outputs.save('recons.png')
 
-f = simple_classifier.classifier(256*64*64,device).to(device)   #embdeding dimension X Height/4 X Width/4
+f = simple_classifier.classifier(64*64*64,device).to(device)   #embdeding dimension X Height/4 X Width/4
 
 f_optimizer = optim.SGD(f.parameters(),lr = 1e-2)
 f_criterion = nn.BCEWithLogitsLoss()

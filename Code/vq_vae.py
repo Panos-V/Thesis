@@ -176,12 +176,15 @@ class model(nn.Module):
         self.decoder = decoder(embedding_dim, num_hiddens,num_residual_layers,num_residual_hiddens)
     
     def forward(self,x):
+
         x = self.encoder(x)
         x = self.pre_vq_conv(x)
         loss , quantized , perplexity,_ = self.vq(x)
 
         x_recon = self.decoder(quantized)
         
+        #x_recon = x_recon.clone()
+        #x_recon[:, 1, :, :] = torch.clamp_(x_recon[:, 1, :, :], max=120.0 / 255.0)  #inplace clamp with clone does not change the computation graph
         return loss,x_recon,perplexity
     
     
@@ -191,7 +194,9 @@ def train_model(model,epochs,optimizer,criterion,dataloader):
     
         progress_bar = tqdm(dataloader,desc = f"Epoch {epoch_idx+1}", unit="batch")
         total_loss = 0
+        total_perp = 0
         for im,label,_ in progress_bar:
+            
             im = im.to(model.device)
             label = label.to(model.device)
             optimizer.zero_grad()
@@ -202,13 +207,14 @@ def train_model(model,epochs,optimizer,criterion,dataloader):
             loss = recon_loss + vq_loss
             
             total_loss += loss
-            
+            total_perp += perplexity
             loss.backward()
             
             optimizer.step()
             
-            progress_bar.set_postfix({"loss": f"{loss.item():.4f}"},refresh=True)
+            progress_bar.set_postfix({"loss": f"{loss.item():.4f}","Perplexity": f"{perplexity.item():.4f}"},refresh=True)
         print(f"Average loss for epoch {epoch_idx+1}: {total_loss/len(dataloader)}")
+        print(f"Average perplexity for epoch {epoch_idx+1}: {total_perp/len(dataloader)}")
     
     torch.save(model.state_dict(), "vqvae.pth")
     
