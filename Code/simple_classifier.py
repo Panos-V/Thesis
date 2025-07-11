@@ -21,11 +21,26 @@ class classifier(nn.Module):
 
         
         return F.sigmoid(x)
-    
-def train_classifier(model,classifier,epochs,optimizer,criterion,dataloader):
+
+def save_checkpoint(state,filename='checkpointf.tar'):
+    print("=> Saving checkpoint")
+    torch.save(state,filename)
+
+def load_checkpoint(checkpoint,model,optimizer,epoch):
+    print("=> Loading checkpoint")
+    model.load_state_dict(checkpoint['state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer'])
+    return epoch - checkpoint['epoch']
+
+def train_classifier(model,classifier,epochs,optimizer,criterion,dataloader,load=False,save_period=3):
     scaler = torch.amp.GradScaler()
-    for step in range(epochs):
-        progress2 = tqdm(dataloader,desc = f"Epoch {step+1}", unit="batch")
+
+    if load:
+        checkpoint = torch.load("checkpointf.tar")
+        epochs = load_checkpoint(checkpoint,model,optimizer,epochs)
+
+    for epoch_idx in range(epochs):
+        progress2 = tqdm(dataloader,desc = f"Epoch {epoch_idx+1}", unit="batch")
         total_loss = 0
         for im,label,_ in progress2:
             im = im.to(model.device)
@@ -46,8 +61,14 @@ def train_classifier(model,classifier,epochs,optimizer,criterion,dataloader):
             total_loss += loss.item()
             
             progress2.set_postfix({"loss": f"{loss.item():.4f}"},refresh=True)
-        
-        print(f"Average loss for epoch {step+1}: {total_loss/len(dataloader)}")
+        if (epoch_idx + 1) % save_period == 0:
+            checkpoint = {
+                'state_dict': model.state_dict(),
+                'optimizer': optimizer.state_dict(),
+                'epoch':epoch_idx
+            }
+        save_checkpoint(checkpoint)
+        print(f"Average loss for epoch {epoch_idx+1}: {total_loss/len(dataloader)}")
     torch.save(classifier.state_dict(), "classifier.pth")
     
     

@@ -6,3 +6,5 @@ outputs.png
 classifier.pth
 original2.png
 recons.png
+checkpoint.pth.tar
+checkpoint.tar

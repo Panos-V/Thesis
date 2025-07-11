@@ -187,14 +187,27 @@ class model(nn.Module):
         #x_recon[:, 1, :, :] = torch.clamp_(x_recon[:, 1, :, :], max=120.0 / 255.0)  #inplace clamp with clone does not change the computation graph
         return loss,x_recon,perplexity
     
-    
-def train_model(model,epochs,optimizer,criterion,dataloader):
+def save_checkpoint(state,filename='checkpointVQ.tar'):
+    print("=> Saving checkpoint")
+    torch.save(state,filename)
+
+def load_checkpoint(checkpoint,model,optimizer,epoch):
+    print("=> Loading checkpoint")
+    model.load_state_dict(checkpoint['state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer'])
+    return epoch - checkpoint['epoch']
+
+def train_model(model,epochs,optimizer,criterion,dataloader,load = False,save_period = 3):
     model.train()
+
+    if load:
+        checkpoint = torch.load("checkpointVQ.tar")
+        epochs = load_checkpoint(checkpoint,model,optimizer,epochs)
 
     scaler = torch.amp.GradScaler()
     for epoch_idx in range(epochs):
     
-        progress_bar = tqdm(dataloader,desc = f"Epoch {epoch_idx+1}", unit="batch")
+        progress_bar = tqdm(dataloader,desc = f"Epoch {epoch_idx+1}/{epochs}", unit="batch")
         total_loss = 0
         total_perp = 0
         for im,label,_ in progress_bar:
@@ -218,8 +231,17 @@ def train_model(model,epochs,optimizer,criterion,dataloader):
             total_perp += perplexity.item()
 
             progress_bar.set_postfix({"loss": f"{loss.item():.4f}","Perplexity": f"{perplexity.item():.4f}"},refresh=True)
+        if (epoch_idx + 1) % save_period == 0:
+            checkpoint = {
+                'state_dict': model.state_dict(),
+                'optimizer': optimizer.state_dict(),
+                'epoch':epoch_idx
+            }
+        save_checkpoint(checkpoint)
         print(f"Average loss for epoch {epoch_idx+1}: {total_loss/len(dataloader)}")
         print(f"Average perplexity for epoch {epoch_idx+1}: {total_perp/len(dataloader)}")
+
+        
     
     torch.save(model.state_dict(), "vqvae.pth")
     

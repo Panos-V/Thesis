@@ -19,10 +19,10 @@ def imshow(img):
     plt.axis('off')
     plt.show()
 
-def adversarial_walk(f,h,a,model,device,steps = 4):    #h = latent representations f = classifier
+def adversarial_walk(f,h,a,model,device,steps = 7):    #h = latent representations f = classifier
     h_delta = h.clone().detach().requires_grad_(True).to(device)
 
-    e = 1e-6
+    e = 1e-9
     for i in range(steps):
 
         prediction = f(h_delta)
@@ -51,7 +51,7 @@ transform = transforms.Compose([
     ])
 
 
-batch_size = 128
+batch_size = 64
 
 colored_train = ColorMnist.get_biased_mnist_dataloader("coloredmnist_data", batch_size,1,num_workers=4)
 colored_test = ColorMnist.get_biased_mnist_dataloader("coloredmnist_data", batch_size,1,train = False,num_workers=0)
@@ -62,19 +62,19 @@ skin_train,skin_test = SkinCancerData.CreateLoader(path, transform, batch_size)
 
 
 
-ALPHA = 0.001
-TRAIN = True
-Train_f = True
+ALPHA = 0.03
+TRAIN = False
+Train_f = False
 
 
-epochs = 30
+epochs = 50
 
 num_hiddens = 512
 num_residual_hiddens = 32
 num_residual_layers = 2
 embedding_dim = 64
-num_embeddings = 512
-commitment_cost = 0.25
+num_embeddings = 2048
+commitment_cost = 0.35
 decay = 0.99
 learning_rate = 0.0001
 
@@ -86,8 +86,10 @@ model = vq_vae.model(num_hiddens,num_residual_layers,num_residual_hiddens,num_em
 optimizer = optim.Adam(model.parameters(), lr=learning_rate, amsgrad=False)
 criterion = torch.nn.MSELoss()
 
+to_PIL = transforms.ToPILImage()
+
 if TRAIN:
-    vq_vae.train_model(model,epochs, optimizer, criterion, skin_train)
+    vq_vae.train_model(model,epochs, optimizer, criterion, skin_train,load=True)
 
 else:
     model.load_state_dict(torch.load("vqvae.pth",weights_only=False))
@@ -97,8 +99,6 @@ else:
     
     image = im.to(device)
     label = label.to(device) 
-    to_PIL = transforms.ToPILImage()
-
     _,recon,_ = model(image)
     
     images = make_grid(image[:32])
@@ -118,7 +118,7 @@ epochs_f = 10
 if Train_f:
     simple_classifier.train_classifier(model,f,
                                        epochs_f, f_optimizer,
-                                       f_criterion, skin_train)
+                                       f_criterion, skin_train,load=False)
 
 
 else:
@@ -127,7 +127,7 @@ else:
     model.eval()
     
     (im,label,_) = next(iter(skin_test))
-    image = im.to(device)
+    image = image.to(device)
     label = label.to(device)
     images = make_grid(image[:32])
 
@@ -137,8 +137,6 @@ else:
     recon = model.decoder(output)
     
     outputs = make_grid(recon[:32])
-
-    to_PIL = transforms.ToPILImage()
 
     images = to_PIL(images)
     images.save('original.png')
