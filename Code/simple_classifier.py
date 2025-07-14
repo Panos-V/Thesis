@@ -6,11 +6,11 @@ from tqdm import tqdm
 
 
 class classifier(nn.Module):
-    def __init__(self,in_channels,device):
+    def __init__(self,in_channels,num_classes,device):
         super(classifier,self).__init__()
         self.device = device
         self.fc1 = nn.Linear(in_channels, 100)
-        self.fc2 = nn.Linear(100,1)
+        self.fc2 = nn.Linear(100,num_classes)
         
     def forward(self,x):
         x = torch.flatten(x,1)
@@ -18,9 +18,7 @@ class classifier(nn.Module):
         x = F.relu(self.fc1(x))
         x = self.fc2(x)
 
-
-        
-        return F.sigmoid(x)
+        return x
 
 def save_checkpoint(state,filename='checkpointf.tar'):
     print("=> Saving checkpoint")

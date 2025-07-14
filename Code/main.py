@@ -10,7 +10,7 @@ import ColorMnist
 import vq_vae
 import simple_classifier
 import SkinCancerData
-
+import resnet
 
 def imshow(img):
     img = img / 2 + 0.5  # unnormalize
@@ -109,7 +109,7 @@ else:
     outputs = to_PIL(outputs)
     outputs.save('recons.png')
 
-f = simple_classifier.classifier(64*64*64,device).to(device)   #embdeding dimension X Height/4 X Width/4
+f = simple_classifier.classifier(64*64*64,2,device).to(device)   #embdeding dimension X Height/4 X Width/4
 
 f_optimizer = optim.SGD(f.parameters(),lr = 1e-2)
 f_criterion = nn.BCEWithLogitsLoss()
@@ -142,3 +142,9 @@ else:
     images.save('original.png')
     outputs = to_PIL(outputs)
     outputs.save('outputs.png')
+
+res = resnet.ResNet50(img_channel=3,num_classes=1).to(device)
+res_opt = optim.Adam(res.parameters(),lr=1e-3)
+res_crit = nn.BCEWithLogitsLoss()
+
+
