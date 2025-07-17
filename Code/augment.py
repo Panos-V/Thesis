@@ -75,7 +75,7 @@ img_num = 0
 for _ in range(30):
     print('a')
     for img, label in dataset:
-        path = 'Code/augmented/ISIC_AUGMENTATION_'+str(img_num)+'.jpg'
+        path = 'Code/augmented/ISIC_AUGMENTATION_'+str(img_num)
         save_image(img, path)
         df = pd.concat([pd.DataFrame([[
             'ISIC_AUGMENTATION_' + str(img_num)+'.jpg',

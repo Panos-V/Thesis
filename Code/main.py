@@ -63,20 +63,20 @@ skin_train,skin_test = SkinCancerData.CreateLoader(path, transform, batch_size)
 
 
 ALPHA = 0.03
-TRAIN = False
-Train_f = False
+TRAIN = True
+Train_f = True
 
 
-epochs = 50
+epochs = 100
 
 num_hiddens = 512
 num_residual_hiddens = 32
 num_residual_layers = 2
 embedding_dim = 64
-num_embeddings = 2048
-commitment_cost = 0.35
+num_embeddings = 1024
+commitment_cost = 0.5
 decay = 0.99
-learning_rate = 0.0001
+learning_rate = 0.00001
 
 
 
@@ -89,7 +89,7 @@ criterion = torch.nn.MSELoss()
 to_PIL = transforms.ToPILImage()
 
 if TRAIN:
-    vq_vae.train_model(model,epochs, optimizer, criterion, skin_train,load=True)
+    vq_vae.train_model(model,epochs, optimizer, criterion, skin_train,load=False)
 
 else:
     model.load_state_dict(torch.load("vqvae.pth",weights_only=False))
