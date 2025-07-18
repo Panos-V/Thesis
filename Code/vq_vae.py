@@ -237,7 +237,8 @@ def train_model(model,epochs,optimizer,criterion,dataloader,load = False,save_pe
                 'optimizer': optimizer.state_dict(),
                 'epoch':epoch_idx
             }
-        save_checkpoint(checkpoint)
+            save_checkpoint(checkpoint)
+
         print(f"Average loss for epoch {epoch_idx+1}: {total_loss/len(dataloader)}")
         print(f"Average perplexity for epoch {epoch_idx+1}: {total_perp/len(dataloader)}")
 

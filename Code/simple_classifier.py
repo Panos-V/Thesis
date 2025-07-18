@@ -65,7 +65,7 @@ def train_classifier(model,classifier,epochs,optimizer,criterion,dataloader,load
                 'optimizer': optimizer.state_dict(),
                 'epoch':epoch_idx
             }
-        save_checkpoint(checkpoint)
+            save_checkpoint(checkpoint)
         print(f"Average loss for epoch {epoch_idx+1}: {total_loss/len(dataloader)}")
     torch.save(classifier.state_dict(), "classifier.pth")
     

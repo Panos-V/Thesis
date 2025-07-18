@@ -84,12 +84,12 @@ model = vq_vae.model(num_hiddens,num_residual_layers,num_residual_hiddens,num_em
               commitment_cost,device).to(device)
     
 optimizer = optim.Adam(model.parameters(), lr=learning_rate, amsgrad=False)
-criterion = torch.nn.MSELoss()
+criterion = torch.nn.L1Loss()
 
 to_PIL = transforms.ToPILImage()
 
 if TRAIN:
-    vq_vae.train_model(model,epochs, optimizer, criterion, skin_train,load=False)
+    vq_vae.train_model(model,epochs, optimizer, criterion, skin_train,load=True)
 
 else:
     model.load_state_dict(torch.load("vqvae.pth",weights_only=False))

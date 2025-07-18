@@ -8,4 +8,6 @@ original2.png
 recons.png
 checkpoint.pth.tar
 checkpoint.tar
+checkpointVQ.tar
+checkpointf.tar
 Code/archive/pad
