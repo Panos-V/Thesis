@@ -42,7 +42,7 @@ def train_classifier(model,classifier,epochs,optimizer,criterion,dataloader,load
         total_loss = 0
         for im,label,_ in progress2:
             im = im.to(model.device)
-            label = label.float().to(model.device)
+            label = label.long().to(model.device)
             optimizer.zero_grad()
             with torch.no_grad():    
                 h = model.encoder(im)

@@ -19,7 +19,7 @@ def imshow(img):
     plt.axis('off')
     plt.show()
 
-def adversarial_walk(f,h,a,model,device,steps = 7):    #h = latent representations f = classifier
+def adversarial_walk(f,h,a,model,device,steps = 4):    #h = latent representations f = classifier
     h_delta = h.clone().detach().requires_grad_(True).to(device)
 
     e = 1e-9
@@ -64,17 +64,17 @@ skin_train,skin_test = SkinCancerData.CreateLoader(path, transform, batch_size)
 
 ALPHA = 0.03
 TRAIN = True
-Train_f = True
+Train_f = False
 
 
-epochs = 100
+epochs = 50
 
 num_hiddens = 512
 num_residual_hiddens = 32
 num_residual_layers = 2
 embedding_dim = 64
-num_embeddings = 1024
-commitment_cost = 0.5
+num_embeddings = 2056
+commitment_cost = 0.35
 decay = 0.99
 learning_rate = 0.00001
 
@@ -84,7 +84,7 @@ model = vq_vae.model(num_hiddens,num_residual_layers,num_residual_hiddens,num_em
               commitment_cost,device).to(device)
     
 optimizer = optim.Adam(model.parameters(), lr=learning_rate, amsgrad=False)
-criterion = torch.nn.L1Loss()
+criterion = torch.nn.MSELoss()
 
 to_PIL = transforms.ToPILImage()
 
@@ -94,7 +94,7 @@ if TRAIN:
 else:
     model.load_state_dict(torch.load("vqvae.pth",weights_only=False))
     
-    (im,label,_) = next(iter(skin_test))
+    (im,label,_) = next(iter(skin_train))
 
     
     image = im.to(device)
@@ -109,16 +109,16 @@ else:
     outputs = to_PIL(outputs)
     outputs.save('recons.png')
 
-f = simple_classifier.classifier(64*64*64,2,device).to(device)   #embdeding dimension X Height/4 X Width/4
+f = simple_classifier.classifier(64*64*64,num_classes= 2 ,device=device).to(device)   #embdeding dimension X Height/4 X Width/4
 
 f_optimizer = optim.SGD(f.parameters(),lr = 1e-2)
-f_criterion = nn.BCEWithLogitsLoss()
+f_criterion = nn.CrossEntropyLoss()
 epochs_f = 10
 
 if Train_f:
     simple_classifier.train_classifier(model,f,
                                        epochs_f, f_optimizer,
-                                       f_criterion, skin_train,load=False)
+                                       f_criterion, skin_train,load=True)
 
 
 else:
