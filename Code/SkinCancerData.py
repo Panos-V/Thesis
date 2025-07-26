@@ -39,7 +39,7 @@ def CreateLoader(path,transform,batch_size):
     data = CustomDataset(path,transform=transform)   
     train, test = torch.utils.data.random_split(data, [0.8, 0.2])
     train_loader = DataLoader(train,batch_size=batch_size, shuffle = True,num_workers=8,pin_memory=True)
-    test_loader = DataLoader(data,batch_size=batch_size, shuffle = False,num_workers=8,pin_memory=True)
+    test_loader = DataLoader(test,batch_size=batch_size, shuffle = False,num_workers=8,pin_memory=True)
     
     return train_loader,test_loader
     

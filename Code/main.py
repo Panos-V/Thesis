@@ -5,12 +5,15 @@ import torch.nn as nn
 import torch.optim as optim
 import torchvision.transforms as transforms
 from torchvision.utils import make_grid
+from torchvision import models
 
 import ColorMnist
 import vq_vae
 import simple_classifier
 import SkinCancerData
 import resnet
+
+plt.ion()  # Interactive mode on for matplotlib
 
 def imshow(img):
     img = img / 2 + 0.5  # unnormalize
@@ -63,7 +66,7 @@ skin_train,skin_test = SkinCancerData.CreateLoader(path, transform, batch_size)
 
 
 ALPHA = 0.03
-TRAIN = True
+TRAIN = False
 Train_f = False
 
 
@@ -127,7 +130,7 @@ else:
     model.eval()
     
     (im,label,_) = next(iter(skin_test))
-    image = image.to(device)
+    image = im.to(device)
     label = label.to(device)
     images = make_grid(image[:32])
 
@@ -143,8 +146,16 @@ else:
     outputs = to_PIL(outputs)
     outputs.save('outputs.png')
 
-res = resnet.ResNet50(img_channel=3,num_classes=1).to(device)
-res_opt = optim.Adam(res.parameters(),lr=1e-3)
-res_crit = nn.BCEWithLogitsLoss()
+res = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V2)
+for param in res.parameters():
+    param.requires_grad = False
 
+res.fc = nn.Linear(res.fc.in_features, 2)
+res.to(device)
+res_criterion = nn.CrossEntropyLoss()
+res_optimizer = optim.SGD(res.parameters(), lr=1e-3,momentum=0.9)
+scheduler = optim.lr_scheduler.StepLR(res_optimizer, step_size=5, gamma=0.1)
+
+res = resnet.train_model(res, res_criterion, res_optimizer, scheduler, skin_train, skin_test, num_epochs=25)
+resnet.visualize_model(res, num_images=10)
 
