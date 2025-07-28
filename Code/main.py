@@ -146,16 +146,5 @@ else:
     outputs = to_PIL(outputs)
     outputs.save('outputs.png')
 
-res = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V2)
-for param in res.parameters():
-    param.requires_grad = False
 
-res.fc = nn.Linear(res.fc.in_features, 2)
-res.to(device)
-res_criterion = nn.CrossEntropyLoss()
-res_optimizer = optim.SGD(res.parameters(), lr=1e-3,momentum=0.9)
-scheduler = optim.lr_scheduler.StepLR(res_optimizer, step_size=5, gamma=0.1)
-
-res = resnet.train_model(res, res_criterion, res_optimizer, scheduler, skin_train, skin_test, num_epochs=25)
-resnet.visualize_model(res, num_images=10)
 
