@@ -56,8 +56,8 @@ transform = transforms.Compose([
 
 batch_size = 64
 
-colored_train = ColorMnist.get_biased_mnist_dataloader("coloredmnist_data", batch_size,1,num_workers=4)
-colored_test = ColorMnist.get_biased_mnist_dataloader("coloredmnist_data", batch_size,1,train = False,num_workers=0)
+colored_train = ColorMnist.get_biased_mnist_dataloader("coloredmnist_data", batch_size,1,num_workers=8)
+colored_test = ColorMnist.get_biased_mnist_dataloader("coloredmnist_data", batch_size,1,train = False,num_workers=8)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 path = "Code/archive/"
@@ -66,11 +66,12 @@ skin_train,skin_test = SkinCancerData.CreateLoader(path, transform, batch_size)
 
 
 ALPHA = 0.03
-TRAIN = False
-Train_f = False
+TRAIN = True
+Train_f = True
+LOAD_VQ = False
+LOAD_F = False
 
-
-epochs = 50
+epochs = 300
 
 num_hiddens = 512
 num_residual_hiddens = 32
@@ -92,7 +93,8 @@ criterion = torch.nn.MSELoss()
 to_PIL = transforms.ToPILImage()
 
 if TRAIN:
-    vq_vae.train_model(model,epochs, optimizer, criterion, skin_train,load=True)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
+    vq_vae.train_model(model,epochs, optimizer, criterion, skin_train,load=LOAD_VQ, scheduler=scheduler)
 
 else:
     model.load_state_dict(torch.load("vqvae.pth",weights_only=False))
@@ -119,9 +121,10 @@ f_criterion = nn.CrossEntropyLoss()
 epochs_f = 10
 
 if Train_f:
+    scheduler = torch.optim.lr_scheduler.StepLR(f_optimizer, step_size=5, gamma=0.1)
     simple_classifier.train_classifier(model,f,
                                        epochs_f, f_optimizer,
-                                       f_criterion, skin_train,load=True)
+                                       f_criterion, scheduler, skin_train,load=LOAD_F)
 
 
 else:

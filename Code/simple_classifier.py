@@ -30,7 +30,7 @@ def load_checkpoint(checkpoint,model,optimizer,epoch):
     optimizer.load_state_dict(checkpoint['optimizer'])
     return epoch - checkpoint['epoch']
 
-def train_classifier(model,classifier,epochs,optimizer,criterion,dataloader,load=False,save_period=3):
+def train_classifier(model,classifier,epochs,optimizer,criterion,dataloader,load=False,save_period=3,scheduler=None):
     scaler = torch.amp.GradScaler()
 
     if load:
@@ -67,8 +67,10 @@ def train_classifier(model,classifier,epochs,optimizer,criterion,dataloader,load
             }
             save_checkpoint(checkpoint)
         print(f"Average loss for epoch {epoch_idx+1}: {total_loss/len(dataloader)}")
+        if scheduler is not None:
+            scheduler.step()
     torch.save(classifier.state_dict(), "classifier.pth")
-    
-    
 
-    
+
+
+

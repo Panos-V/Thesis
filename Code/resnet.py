@@ -141,26 +141,27 @@ def visualize_model(model, loader, num_images=32):
                     plt.savefig('predictions.png')
                     return
 
-transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Resize((256,256))
-    ])
-skin_train, skin_test = SkinCancerData.CreateLoader("Code/archive/", transform, batch_size=64)
+def run():
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Resize((256,256))
+        ])
+    skin_train, skin_test = SkinCancerData.CreateLoader("Code/archive/", transform, batch_size=64)
 
-res = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
-for param in res.parameters():
-    param.requires_grad = False
-res.fc = nn.Linear(res.fc.in_features, 2)
-res.to(device)
-res_criterion = nn.CrossEntropyLoss()
-res_optimizer = optim.SGD(res.parameters(), lr=1e-3,momentum=0.9)
-scheduler = optim.lr_scheduler.StepLR(res_optimizer, step_size=5, gamma=0.1)
+    res = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
+    for param in res.parameters():
+        param.requires_grad = False
+    res.fc = nn.Linear(res.fc.in_features, 2)
+    res.to(device)
+    res_criterion = nn.CrossEntropyLoss()
+    res_optimizer = optim.SGD(res.parameters(), lr=1e-3,momentum=0.9)
+    scheduler = optim.lr_scheduler.StepLR(res_optimizer, step_size=5, gamma=0.1)
 
-res = train_model(res, res_criterion, res_optimizer, scheduler, skin_train, skin_test, num_epochs=5)
-torch.save(res.state_dict(), "best_resnet20.pth")
-""" res = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V2)
-res.fc = nn.Linear(res.fc.in_features, 2)  # Make sure this matches your training setup
-res.load_state_dict(torch.load("best_resnet50.pth", map_location=device))
-res.to(device) """
+    res = train_model(res, res_criterion, res_optimizer, scheduler, skin_train, skin_test, num_epochs=5)
+    torch.save(res.state_dict(), "best_resnet20.pth")
+    """ res = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V2)
+    res.fc = nn.Linear(res.fc.in_features, 2)  # Make sure this matches your training setup
+    res.load_state_dict(torch.load("best_resnet50.pth", map_location=device))
+    res.to(device) """
 
-visualize_model(res,skin_test, num_images=32)
+    visualize_model(res,skin_test, num_images=32)
