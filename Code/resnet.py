@@ -59,7 +59,7 @@ def imshow(img):
     plt.axis('off')
     plt.show()
 
-def train_model(model,vq,classifier, criterion, optimizer, train_loader, test_loader,adversarial_walk = False ,ALPHA = 0.025,num_epochs=25):
+def train_model(model,vq,classifier, criterion, optimizer, train_loader, test_loader,adversarial = False ,ALPHA = 0.025,num_epochs=25):
     since = time.time()
     vq.eval()
     classifier.eval()
@@ -104,11 +104,20 @@ def train_model(model,vq,classifier, criterion, optimizer, train_loader, test_lo
                         if adversarial_walk and phase == 'train':
                             h = vq.encoder(inputs)
                             h = vq.pre_vq_conv(h)
-                            output,perplexity = adversarial_walk(classifier, h, ALPHA,model,device)
+                            output,perplexity = adversarial_walk(classifier, h, ALPHA,vq,device)
                             recon = vq.decoder(output).to(device)
                             outputs = model(recon)
                             _, preds = torch.max(outputs, 1)
                             loss = criterion(outputs, labels)
+                        elif phase == 'train':
+                            outputs = model(inputs)
+                            _, preds = torch.max(outputs, 1)
+                            loss = criterion(outputs, labels)
+                        else:
+                            with torch.no_grad():
+                                outputs = model(inputs)
+                                _, preds = torch.max(outputs, 1)
+                                loss = criterion(outputs, labels)
                         # backward + optimize only if in training phase
                         if phase == 'train':
                             loss.backward()
@@ -210,6 +219,30 @@ def inference(model_path, loader, transform):
     print("Confusion Matrix:",confusion_matrix(all_labels, all_preds))
     print(f'Fairness Metrics - Equal Opportunity: {EO:.4f}, Impact Disparate: {DI:.4f}')
 
+def adversarial_walk(f,h,a,model,device,steps = 5):    #h = latent representations f = classifier
+    h_delta = h.clone().detach().requires_grad_(True).to(device)
+
+    e = 1e-12
+    for i in range(steps):
+        prediction = f(h_delta)
+        prediction = torch.softmax(prediction, dim=1)
+        entropy = -torch.special.entr(prediction + e).sum(dim=1).mean()
+        gradient = torch.autograd.grad(entropy, h_delta, retain_graph=True)[0]
+
+
+        delta = (gradient - gradient.mean()) / (gradient.std() + e)    
+
+        h_delta = h_delta + a*delta
+
+        _,h_delta,perplexity,_ = model.vq(h_delta)
+
+        
+        h_delta = h_delta.requires_grad_(True)
+
+    #print(h_delta)
+
+    return h_delta,perplexity
+
 def fine_tune(model, criterion, optimizer, train_loader, test_loader, num_epochs=5):
     since = time.time()
 
@@ -266,12 +299,11 @@ def fine_tune(model, criterion, optimizer, train_loader, test_loader, num_epochs
 
     return model
 
-def create_model(name = 'ResNet18.pth'):
+def create_model(vq,classifier,train,test,name = 'ResNet18.pth',adversarial = False, ALPHA = 0.025):
     transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.Resize((256,256))
         ])
-    skin_train, skin_test = SkinCancerData.CreateLoader("Code/archive/", transform, batch_size=64)
 
     res = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
     for param in res.parameters():
@@ -282,11 +314,13 @@ def create_model(name = 'ResNet18.pth'):
     res_optimizer = optim.SGD(res.parameters(), lr=1e-3,momentum=0.9)
 
 
-    res = train_model(res, res_criterion, res_optimizer, skin_train, skin_test, num_epochs=50)
-    res = fine_tune(res, res_criterion, res_optimizer, skin_train, skin_test, num_epochs=100)
+    res = train_model(res,vq,classifier, res_criterion, res_optimizer, train, test, num_epochs=50,adversarial=adversarial, ALPHA=ALPHA)
+    res = fine_tune(res, res_criterion, res_optimizer, train, test, num_epochs=100)
     torch.save(res.state_dict(), name)
 
-    visualize_model(res,skin_test, num_images=32)
+    visualize_model(res,test, num_images=32)
+
+    return res
 
 """ transform = transforms.Compose([
         transforms.ToTensor(),

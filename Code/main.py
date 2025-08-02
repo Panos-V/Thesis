@@ -38,7 +38,7 @@ def adversarial_walk(f,h,a,model,device,steps = 5):    #h = latent representatio
         h_delta = h_delta + a*delta
 
         _,h_delta,perplexity,_ = model.vq(h_delta)
-        print(f"Step {i}: gradient mean {gradient.mean():.3e}, std {gradient.std():.3e}")
+
         
         h_delta = h_delta.requires_grad_(True)
 
@@ -84,27 +84,27 @@ learning_rate = 0.001
 
 
 
-model = vq_vae.model(num_hiddens,num_residual_layers,num_residual_hiddens,num_embeddings, embedding_dim, 
+vq = vq_vae.model(num_hiddens,num_residual_layers,num_residual_hiddens,num_embeddings, embedding_dim, 
               commitment_cost,device).to(device)
-    
-optimizer = optim.Adam(model.parameters(), lr=learning_rate, amsgrad=False)
+
+optimizer = optim.Adam(vq.parameters(), lr=learning_rate, amsgrad=False)
 criterion = torch.nn.MSELoss()
 
 to_PIL = transforms.ToPILImage()
 
 if TRAIN:
 
-    vq_vae.train_model(model,epochs, optimizer, criterion, skin_train,load=LOAD_VQ)
+    vq_vae.train_model(vq,epochs, optimizer, criterion, skin_train,load=LOAD_VQ)
 
 else:
-    model.load_state_dict(torch.load("vqvae.pth",weights_only=False))
+    vq.load_state_dict(torch.load("vqvae.pth",weights_only=False))
     
     (im,label,_) = next(iter(skin_train))
 
     
     image = im.to(device)
     label = label.to(device) 
-    _,recon,_ = model(image)
+    _,recon,_ = vq(image)
     
     images = make_grid(image[:32])
     outputs = make_grid(recon[:32])
@@ -122,7 +122,7 @@ epochs_f = 10
 
 if Train_f:
 
-    simple_classifier.train_classifier(model,f,
+    simple_classifier.train_classifier(vq,f,
                                        epochs_f, f_optimizer,
                                        f_criterion, skin_train,load=LOAD_F)
 
@@ -130,17 +130,17 @@ if Train_f:
 else:
     f.load_state_dict(torch.load("classifier.pth",weights_only=False))
     f.eval()
-    model.eval()
+    vq.eval()
     
     (im,label,_) = next(iter(skin_test))
     image = im.to(device)
     label = label.to(device)
     images = make_grid(image[:32])
 
-    h = model.encoder(image)
-    h = model.pre_vq_conv(h)
-    output,perplexity = adversarial_walk(f, h, ALPHA,model,device)
-    recon = model.decoder(output)
+    h = vq.encoder(image)
+    h = vq.pre_vq_conv(h)
+    output,perplexity = adversarial_walk(f, h, ALPHA,vq,device)
+    recon = vq.decoder(output)
     
     outputs = make_grid(recon[:32])
 
@@ -149,5 +149,5 @@ else:
     outputs = to_PIL(outputs)
     outputs.save('outputs.png')
 
-res = resnet.create_model('unbiased_resnet20.pth')
+res = resnet.create_model(vq,f,skin_train, skin_test, 'unbiased_resnet20.pth',adversarial=True, ALPHA=ALPHA)
 
