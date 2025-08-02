@@ -197,7 +197,7 @@ def load_checkpoint(checkpoint,model,optimizer,epoch):
     optimizer.load_state_dict(checkpoint['optimizer'])
     return epoch - checkpoint['epoch']
 
-def train_model(model, epochs, optimizer, criterion, dataloader, load=False, save_period=3, scheduler=None):
+def train_model(model, epochs, optimizer, criterion, dataloader, load=False, save_period=3):
     model.train()
 
     if load:
@@ -241,8 +241,7 @@ def train_model(model, epochs, optimizer, criterion, dataloader, load=False, sav
 
         print(f"Average loss for epoch {epoch_idx+1}: {total_loss/len(dataloader)}")
         print(f"Average perplexity for epoch {epoch_idx+1}: {total_perp/len(dataloader)}")
-        if scheduler is not None:
-            scheduler.step()
+
 
         
     

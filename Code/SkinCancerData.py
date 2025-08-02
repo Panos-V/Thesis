@@ -40,7 +40,7 @@ def CreateLoader(path,transform,batch_size):
     train = CustomDataset(path,'train',transform=transform)   
     test = CustomDataset(path,'test',transform=transform)
     train_loader = DataLoader(train,batch_size=batch_size, shuffle = True,num_workers=12,pin_memory=True)
-    test_loader = DataLoader(test,batch_size=batch_size, shuffle = False,num_workers=12,pin_memory=True)
+    test_loader = DataLoader(test,batch_size=batch_size, shuffle = True,num_workers=12,pin_memory=True)
     
     return train_loader,test_loader
     

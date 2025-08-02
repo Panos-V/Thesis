@@ -25,13 +25,13 @@ def imshow(img):
 def adversarial_walk(f,h,a,model,device,steps = 4):    #h = latent representations f = classifier
     h_delta = h.clone().detach().requires_grad_(True).to(device)
 
-    e = 1e-9
+    e = 1e-12
     for i in range(steps):
-
         prediction = f(h_delta)
-        entropy = -torch.special.entr(prediction).sum(dim=1).mean()
+        prediction = torch.softmax(prediction, dim=1)
+        entropy = -torch.special.entr(prediction + e).sum(dim=1).mean()
+        gradient = torch.autograd.grad(entropy, h_delta, retain_graph=True)[0]
 
-        gradient = torch.autograd.grad(entropy, h_delta)[0]
 
         delta = (gradient - gradient.mean()) / (gradient.std() + e)    
 
@@ -65,13 +65,13 @@ skin_train,skin_test = SkinCancerData.CreateLoader(path, transform, batch_size)
 
 
 
-ALPHA = 0.03
-TRAIN = True
-Train_f = True
-LOAD_VQ = False
+ALPHA = 0.025
+TRAIN = False
+Train_f = False
+LOAD_VQ = True
 LOAD_F = False
 
-epochs = 300
+epochs = 100
 
 num_hiddens = 512
 num_residual_hiddens = 32
@@ -80,7 +80,7 @@ embedding_dim = 64
 num_embeddings = 2056
 commitment_cost = 0.35
 decay = 0.99
-learning_rate = 0.00001
+learning_rate = 0.001
 
 
 
@@ -93,8 +93,8 @@ criterion = torch.nn.MSELoss()
 to_PIL = transforms.ToPILImage()
 
 if TRAIN:
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
-    vq_vae.train_model(model,epochs, optimizer, criterion, skin_train,load=LOAD_VQ, scheduler=scheduler)
+
+    vq_vae.train_model(model,epochs, optimizer, criterion, skin_train,load=LOAD_VQ)
 
 else:
     model.load_state_dict(torch.load("vqvae.pth",weights_only=False))
@@ -116,15 +116,15 @@ else:
 
 f = simple_classifier.classifier(64*64*64,num_classes= 2 ,device=device).to(device)   #embdeding dimension X Height/4 X Width/4
 
-f_optimizer = optim.SGD(f.parameters(),lr = 1e-2)
+f_optimizer = optim.SGD(f.parameters(),lr = 0.001, momentum=0.9)
 f_criterion = nn.CrossEntropyLoss()
 epochs_f = 10
 
 if Train_f:
-    scheduler = torch.optim.lr_scheduler.StepLR(f_optimizer, step_size=5, gamma=0.1)
+
     simple_classifier.train_classifier(model,f,
                                        epochs_f, f_optimizer,
-                                       f_criterion, scheduler, skin_train,load=LOAD_F)
+                                       f_criterion, skin_train,load=LOAD_F)
 
 
 else:
