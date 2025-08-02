@@ -13,7 +13,7 @@ import simple_classifier
 import SkinCancerData
 import resnet
 
-plt.ion()  # Interactive mode on for matplotlib
+
 
 def imshow(img):
     img = img / 2 + 0.5  # unnormalize
@@ -22,7 +22,7 @@ def imshow(img):
     plt.axis('off')
     plt.show()
 
-def adversarial_walk(f,h,a,model,device,steps = 4):    #h = latent representations f = classifier
+def adversarial_walk(f,h,a,model,device,steps = 5):    #h = latent representations f = classifier
     h_delta = h.clone().detach().requires_grad_(True).to(device)
 
     e = 1e-12
@@ -149,5 +149,5 @@ else:
     outputs = to_PIL(outputs)
     outputs.save('outputs.png')
 
-
+res = resnet.create_model('unbiased_resnet20.pth')
 

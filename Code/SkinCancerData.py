@@ -33,14 +33,17 @@ class CustomDataset(Dataset):
             
         label = torch.tensor(label)
         
-        return image,label,label
+        protected = torch.tensor(self.csv.iloc[index].iloc[6])
+
+
+        return image,label,protected
     
 
 def CreateLoader(path,transform,batch_size):
     train = CustomDataset(path,'train',transform=transform)   
     test = CustomDataset(path,'test',transform=transform)
-    train_loader = DataLoader(train,batch_size=batch_size, shuffle = True,num_workers=12,pin_memory=True)
-    test_loader = DataLoader(test,batch_size=batch_size, shuffle = True,num_workers=12,pin_memory=True)
+    train_loader = DataLoader(train,batch_size=batch_size, shuffle = True,num_workers=10,pin_memory=True)
+    test_loader = DataLoader(test,batch_size=batch_size, shuffle = True,num_workers=10,pin_memory=True)
     
     return train_loader,test_loader
     
