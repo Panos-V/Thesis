@@ -65,7 +65,7 @@ skin_train,skin_test = SkinCancerData.CreateLoader(path, transform, batch_size)
 
 
 
-ALPHA = 0.15
+ALPHA = 0.
 TRAIN = False
 Train_f = False
 LOAD_VQ = True
@@ -114,7 +114,7 @@ else:
     outputs = to_PIL(outputs)
     outputs.save('recons.png')
 
-f = simple_classifier.classifier(embedding_dim*64*64).to(device)
+f = simple_classifier.classifier(embedding_dim*64*64,2,device).to(device)
 
 f_optimizer = optim.SGD(f.parameters(),lr = 0.001, momentum=0.9)
 f_criterion = nn.CrossEntropyLoss()
@@ -149,6 +149,6 @@ else:
     outputs = to_PIL(outputs)
     outputs.save('outputs.png')
 torch.cuda.empty_cache()
-res = resnet.create_model(vq,f,skin_train, skin_test, 'unbiased_resnet20_a015.pth',adversarial=True, ALPHA=ALPHA)
-res = resnet.inference('unbiased_resnet20_a015.pth',vq,f,skin_test,transform,adversarial=True, ALPHA=ALPHA)
+res = resnet.create_model(vq,f,skin_train, skin_test, 'unbiased_resnet20_a02.pth',adversarial=True, ALPHA=ALPHA)
+res = resnet.inference('unbiased_resnet20_a02.pth',vq,f,skin_test,transform,adversarial=False, ALPHA=ALPHA)
 print(res)

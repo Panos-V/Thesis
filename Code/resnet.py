@@ -254,7 +254,7 @@ def adversarial_walk(f,h,a,model,device,steps = 4):    #h = latent representatio
 
     return h_delta,perplexity
 
-def fine_tune(model, criterion, optimizer, train_loader, test_loader, num_epochs=50, patience=5, min_delta=0.0):
+def fine_tune(model, criterion, optimizer, train_loader, test_loader, num_epochs=100, patience=5, min_delta=0.01):
     since = time.time()
 
     best_acc = 0.0
@@ -340,7 +340,7 @@ def create_model(vq,classifier,train,test,name = 'ResNet18.pth',adversarial = Fa
 
 
     res = train_model(res,vq,classifier, res_criterion, res_optimizer, train, test, num_epochs=5,adversarial=adversarial, ALPHA=ALPHA)
-    res = fine_tune(res, res_criterion, res_optimizer, train, test, num_epochs=10)
+    res = fine_tune(res, res_criterion, res_optimizer, train, test, num_epochs=100, patience=10, min_delta=0.01)
     torch.save(res.state_dict(), name)
 
     visualize_model(res,test, num_images=32)
