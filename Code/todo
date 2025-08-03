@@ -1,3 +1,7 @@
-redo the augmentations
+redo the augmentations  DONE
+create new branches each with different model settings DONE
 train a resnet on the augmented images
 train a resnet on the original images
+clip green in vq-vae to cut off glitchy colored reconstructions !
+find cancer data for minorities !
+create protected class feature inside the dataset, then augment the protected class and finally implement the fairness metric

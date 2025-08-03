@@ -6,11 +6,11 @@ from tqdm import tqdm
 
 
 class classifier(nn.Module):
-    def __init__(self,in_channels,device):
+    def __init__(self,in_channels,num_classes,device):
         super(classifier,self).__init__()
         self.device = device
         self.fc1 = nn.Linear(in_channels, 100)
-        self.fc2 = nn.Linear(100,1)
+        self.fc2 = nn.Linear(100,num_classes)
         
     def forward(self,x):
         x = torch.flatten(x,1)
@@ -18,36 +18,58 @@ class classifier(nn.Module):
         x = F.relu(self.fc1(x))
         x = self.fc2(x)
 
+        return x
 
-        
-        return F.sigmoid(x)
-    
-def train_classifier(model,classifier,epochs,optimizer,criterion,dataloader):
-    for step in range(epochs):
-        progress2 = tqdm(dataloader,desc = f"Epoch {step+1}", unit="batch")
+def save_checkpoint(state,filename='checkpointf.tar'):
+    print("=> Saving checkpoint")
+    torch.save(state,filename)
+
+def load_checkpoint(checkpoint,model,optimizer,epoch):
+    print("=> Loading checkpoint")
+    model.load_state_dict(checkpoint['state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer'])
+    return epoch - checkpoint['epoch']
+
+def train_classifier(model,classifier,epochs,optimizer,criterion,dataloader,load=False,save_period=3):
+    scaler = torch.amp.GradScaler()
+
+    if load:
+        checkpoint = torch.load("checkpointf.tar")
+        epochs = load_checkpoint(checkpoint,model,optimizer,epochs)
+
+    for epoch_idx in range(epochs):
+        progress2 = tqdm(dataloader,desc = f"Epoch {epoch_idx+1}", unit="batch")
         total_loss = 0
         for im,label,_ in progress2:
             im = im.to(model.device)
-            label = label.float().to(model.device)
+            label = label.long().to(model.device)
+            optimizer.zero_grad()
             with torch.no_grad():    
                 h = model.encoder(im)
                 h = model.pre_vq_conv(h)
-    
-            y = classifier(h).squeeze(1)
-    
-            loss = criterion(y,label)
-            
-            total_loss += loss
-            
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+            with torch.amp.autocast("cuda"):
+                y = classifier(h).squeeze(1)
+                loss = criterion(y,label)
+            scaler.scale(loss).backward()
+
+            # AMP: Unscales the gradients and performs optimization
+            scaler.step(optimizer)
+            scaler.update()
+
+            total_loss += loss.item()
             
             progress2.set_postfix({"loss": f"{loss.item():.4f}"},refresh=True)
-        
-        print(f"Average loss for epoch {step+1}: {total_loss/len(dataloader)}")
-    torch.save(classifier.state_dict(), "classifier.pth")
-    
-    
+        if (epoch_idx + 1) % save_period == 0:
+            checkpoint = {
+                'state_dict': model.state_dict(),
+                'optimizer': optimizer.state_dict(),
+                'epoch':epoch_idx
+            }
+            save_checkpoint(checkpoint)
+        print(f"Average loss for epoch {epoch_idx+1}: {total_loss/len(dataloader)}")
 
-    
+    torch.save(classifier.state_dict(), "classifier.pth")
+
+
+
+
