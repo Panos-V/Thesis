@@ -54,7 +54,7 @@ transform = transforms.Compose([
     ])
 
 
-batch_size = 64
+batch_size = 32
 
 colored_train = ColorMnist.get_biased_mnist_dataloader("coloredmnist_data", batch_size,1,num_workers=8)
 colored_test = ColorMnist.get_biased_mnist_dataloader("coloredmnist_data", batch_size,1,train = False,num_workers=8)
@@ -65,7 +65,7 @@ skin_train,skin_test = SkinCancerData.CreateLoader(path, transform, batch_size)
 
 
 
-ALPHA = 0.025
+ALPHA = 0.07
 TRAIN = False
 Train_f = False
 LOAD_VQ = True
@@ -148,6 +148,7 @@ else:
     images.save('original.png')
     outputs = to_PIL(outputs)
     outputs.save('outputs.png')
-
-res = resnet.create_model(vq,f,skin_train, skin_test, 'unbiased_resnet20.pth',adversarial=True, ALPHA=ALPHA)
-
+torch.cuda.empty_cache()
+res = resnet.create_model(vq,f,skin_train, skin_test, 'biased_resnet20_a007.pth',adversarial=False, ALPHA=ALPHA)
+res = resnet.inference('bias_resnet20.pth',vq,f,skin_test,transform,adversarial=False, ALPHA=ALPHA)
+print(res)
