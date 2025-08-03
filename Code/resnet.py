@@ -254,14 +254,12 @@ def adversarial_walk(f,h,a,model,device,steps = 4):    #h = latent representatio
 
     return h_delta,perplexity
 
-def fine_tune(model, criterion, optimizer, train_loader, test_loader, num_epochs=5):
+def fine_tune(model, criterion, optimizer, train_loader, test_loader, num_epochs=50, patience=5, min_delta=0.0):
     since = time.time()
 
-    all_labels = []
-    all_preds = []
-    all_protected = []
+    best_acc = 0.0
+    epochs_no_improve = 0
 
-    model.train()
     for param in model.parameters():
         param.requires_grad = True
 
@@ -269,58 +267,61 @@ def fine_tune(model, criterion, optimizer, train_loader, test_loader, num_epochs
         print(f'Epoch {epoch+1}/{num_epochs}')
         print('-' * 10)
 
-        # Each epoch has a training and validation phase
         for phase in ['train', 'val']:
             if phase == 'train':
-                model.train()  # Set model to training mode
+                model.train()
+                loader = train_loader
             else:
-                model.eval()   # Set model to evaluate mode
+                model.eval()
+                loader = test_loader
 
             running_loss = 0.0
             running_corrects = 0
+            all_labels = []
+            all_preds = []
+            all_protected = []
 
-            # Iterate over data.
-            for inputs, labels, protected in (train_loader if phase == 'train' else test_loader):
+            for inputs, labels, protected in loader:
                 inputs = inputs.to(device)
                 labels = labels.to(device)
-
-                # zero the parameter gradients
                 optimizer.zero_grad()
 
-                # forward
                 with torch.set_grad_enabled(phase == 'train'):
                     outputs = model(inputs)
                     _, preds = torch.max(outputs, 1)
                     loss = criterion(outputs, labels)
-
-                    # backward + optimize only if in training phase
                     if phase == 'train':
                         loss.backward()
                         optimizer.step()
 
-                # statistics
                 running_loss += loss.item() * inputs.size(0)
                 running_corrects += torch.sum(preds == labels.data)
                 all_labels.extend(labels.cpu().numpy())
                 all_preds.extend(preds.cpu().numpy())
                 all_protected.extend(protected.cpu().numpy())
 
-        acc = accuracy_score(all_labels, all_preds)
-        f1 = f1_score(all_labels, all_preds, average='weighted')
-        precision = precision_score(all_labels, all_preds, average='weighted')
-        recall = recall_score(all_labels, all_preds, average='weighted')
-        EO, DI = fairness_metrics(all_labels, all_preds, all_protected)
-        print(f'Inference Classification Report:')
-        print(f'Accuracy: {acc:.4f} | F1: {f1:.4f} | Precision: {precision:.4f} | Recall: {recall:.4f}')
-        print(classification_report(all_labels, all_preds, digits=4))
-        print("Confusion Matrix:",confusion_matrix(all_labels, all_preds))
-        print(f'Fairness Metrics - Equal Opportunity: {EO:.4f}, Impact Disparate: {DI:.4f}')
+            epoch_loss = running_loss / len(loader.dataset)
+            epoch_acc = running_corrects.double() / len(loader.dataset)
+
+            if phase == 'val':
+                if epoch_acc > best_acc + min_delta:
+                    best_acc = epoch_acc
+                    epochs_no_improve = 0
+                else:
+                    epochs_no_improve += 1
+
+                print(f'Val Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}')
+                EO, DI = fairness_metrics(all_labels, all_preds, all_protected)
+                print(f'Fairness Metrics - Equal Opportunity: {EO:.4f}, Impact Disparate: {DI:.4f}')
+
+        if epochs_no_improve >= patience:
+            print(f'Early stopping at epoch {epoch+1}')
+            break
 
         print()
 
     time_elapsed = time.time() - since
     print(f'Training complete in {time_elapsed // 60:.0f}m {time_elapsed % 60:.0f}s')
-
     return model
 
 def create_model(vq,classifier,train,test,name = 'ResNet18.pth',adversarial = False, ALPHA = 0.025):

@@ -65,7 +65,7 @@ skin_train,skin_test = SkinCancerData.CreateLoader(path, transform, batch_size)
 
 
 
-ALPHA = 0.07
+ALPHA = 0.15
 TRAIN = False
 Train_f = False
 LOAD_VQ = True
@@ -149,6 +149,6 @@ else:
     outputs = to_PIL(outputs)
     outputs.save('outputs.png')
 torch.cuda.empty_cache()
-res = resnet.create_model(vq,f,skin_train, skin_test, 'biased_resnet20_a007.pth',adversarial=False, ALPHA=ALPHA)
-res = resnet.inference('bias_resnet20.pth',vq,f,skin_test,transform,adversarial=False, ALPHA=ALPHA)
+res = resnet.create_model(vq,f,skin_train, skin_test, 'unbiased_resnet20_a015.pth',adversarial=True, ALPHA=ALPHA)
+res = resnet.inference('unbiased_resnet20_a015.pth',vq,f,skin_test,transform,adversarial=True, ALPHA=ALPHA)
 print(res)
