@@ -47,7 +47,7 @@ def adversarial_walk(f,h,a,model,device,steps = 5):    #h = latent representatio
     return h_delta,perplexity
 
 
-torch.set_float32_matmul_precision('high')
+#torch.set_float32_matmul_precision('high')
 transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Resize((256,256))
@@ -65,7 +65,7 @@ skin_train,skin_test = SkinCancerData.CreateLoader(path, transform, batch_size)
 
 
 
-ALPHA = 0.085
+ALPHA = 0.1
 TRAIN = False
 Train_f = False
 LOAD_VQ = True

@@ -91,10 +91,11 @@ def train_model(model,vq,classifier, criterion, optimizer, train_loader, test_lo
     classifier.eval()
     vq.to(device)
     classifier.to(device)
-    scaler = torch.amp.GradScaler('cuda')
+
     for param in model.parameters():
         param.requires_grad = False
     compiled_model = torch.compile(model)
+    cudnn.benchmark = True  # Enable benchmark mode for faster training
     # Create a temporary directory to save training checkpoints
     with TemporaryDirectory() as tempdir:
         best_model_params_path = os.path.join(tempdir, 'best_model_params.pt')
@@ -137,11 +138,12 @@ def train_model(model,vq,classifier, criterion, optimizer, train_loader, test_lo
                             output, _ = adversarial_walk(classifier, h, ALPHA, vq, device)
                             recon = vq.decoder(output).to(device)
                             outputs = compiled_model(recon)
+                            
                         else:
+
                             outputs = compiled_model(inputs)
 
                         _, preds = torch.max(outputs, 1)
-
                         _,_,_,fair_penalty = fairness_metrics(labels, preds, protected)
                         loss = fair_penalty+criterion(outputs, labels) \
                                 if fair else criterion(outputs, labels)
@@ -149,7 +151,6 @@ def train_model(model,vq,classifier, criterion, optimizer, train_loader, test_lo
                         if phase == 'train':
                             loss.backward()
                             optimizer.step()
-
                         # statistics
                         running_loss += loss.item() * inputs.size(0)
                         running_corrects += torch.sum(preds == labels.data)
@@ -318,7 +319,8 @@ def fine_tune(model, vq, classifier, criterion, optimizer, train_loader, test_lo
     since = time.time()
     best_acc = 0.0
     epochs_no_improve = 0
-    scaler = torch.amp.GradScaler('cuda')
+    vq.eval()
+    classifier.eval()
     # Save model state before training
     best_model_state = model.state_dict()
 
@@ -369,9 +371,8 @@ def fine_tune(model, vq, classifier, criterion, optimizer, train_loader, test_lo
                             if fair else criterion(outputs, labels)
 
                     if phase == 'train':
-                        scaler.scale(loss).backward()
-                        scaler.step(optimizer)
-                        scaler.update()
+                        loss.backward()
+                        optimizer.step()
                         
 
                 running_loss += loss.item() * inputs.size(0)
@@ -434,8 +435,8 @@ def create_model(vq,classifier,train,test,epoch_head ,epoch_tune,fair=False,pati
     res = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
     res.fc = nn.Linear(res.fc.in_features, 2)
     res.to(device)
-    res_criterion = nn.CrossEntropyLoss(label_smoothing=0.05)
-    res_optimizer = optim.SGD(res.parameters(), lr=1e-2,weight_decay=1e-6, momentum=0.9)
+    res_criterion = nn.CrossEntropyLoss(weight=torch.tensor([1,1.5],dtype=torch.float32,device=device),label_smoothing=0.1)
+    res_optimizer = optim.SGD(res.parameters(), lr=1e-2,weight_decay=1e-5, momentum=0.9)
 
 
     res = train_model(res,vq, classifier, res_criterion, res_optimizer, train, test,
