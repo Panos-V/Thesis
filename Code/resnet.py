@@ -92,8 +92,6 @@ def train_model(model,vq,classifier, criterion, optimizer, train_loader, test_lo
     vq.to(device)
     classifier.to(device)
 
-    for param in model.parameters():
-        param.requires_grad = False
     compiled_model = torch.compile(model)
     cudnn.benchmark = True  # Enable benchmark mode for faster training
     # Create a temporary directory to save training checkpoints
@@ -151,6 +149,7 @@ def train_model(model,vq,classifier, criterion, optimizer, train_loader, test_lo
                         if phase == 'train':
                             loss.backward()
                             optimizer.step()
+                            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                         # statistics
                         running_loss += loss.item() * inputs.size(0)
                         running_corrects += torch.sum(preds == labels.data)
@@ -380,7 +379,7 @@ def fine_tune(model, vq, classifier, criterion, optimizer, train_loader, test_lo
                 all_labels.extend(labels.cpu().numpy())
                 all_preds.extend(preds.cpu().numpy())
                 all_protected.extend(protected.cpu().numpy())
-
+                progress_bar.set_postfix({"loss": f"{loss.item():.4f}"},refresh=True)
             epoch_loss = running_loss / len(loader.dataset)
             epoch_acc = running_corrects.double() / len(loader.dataset)
 
@@ -433,11 +432,13 @@ def create_model(vq,classifier,train,test,epoch_head ,epoch_tune,fair=False,pati
         ])
 
     res = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
+    for param in res.parameters():
+        param.requires_grad = False
+
     res.fc = nn.Linear(res.fc.in_features, 2)
     res.to(device)
-    res_criterion = nn.CrossEntropyLoss(weight=torch.tensor([1,1.5],dtype=torch.float32,device=device),label_smoothing=0.1)
-    res_optimizer = optim.SGD(res.parameters(), lr=1e-2,weight_decay=1e-5, momentum=0.9)
-
+    res_criterion = nn.CrossEntropyLoss(weight=torch.tensor([1,1.5],dtype=torch.float32,device=device))
+    res_optimizer = optim.AdamW(res.parameters(), lr=1e-3, weight_decay=1e-5)
 
     res = train_model(res,vq, classifier, res_criterion, res_optimizer, train, test,
                       fair=fair,num_epochs=epoch_head,ADV=adversarial, ALPHA=ALPHA)
