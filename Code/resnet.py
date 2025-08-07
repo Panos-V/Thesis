@@ -14,38 +14,66 @@ from tempfile import TemporaryDirectory
 import SkinCancerData
 from tqdm import tqdm
 from sklearn.metrics import classification_report, accuracy_score, f1_score, precision_score, recall_score, confusion_matrix
+import torch.backends.cudnn as cudnn
 
-
-# We want to be able to train our model on an `accelerator <https://pytorch.org/docs/stable/torch.html#accelerators>`__
-# such as CUDA, MPS, MTIA, or XPU. If the current accelerator is available, we will use it. Otherwise, we use the CPU.
 
 device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
 print(f"Using {device} device")
 
-def fairness_metrics(y_true, y_pred, protected):
-    y_true = np.array(y_true)
-    y_pred = np.array(y_pred)
-    protected = np.array(protected)
+def fairness_metrics(y_true, y_pred, protected, lambda_eo=0.1, lambda_di=0.1, lambda_ap=0.1):
+    if not isinstance(y_true, torch.Tensor):
+        y_true = torch.tensor(y_true, dtype=torch.float32)
+    if not isinstance(y_pred, torch.Tensor):
+        y_pred = torch.tensor(y_pred, dtype=torch.float32)
+    if not isinstance(protected, torch.Tensor):
+        protected = torch.tensor(protected, dtype=torch.float32)
 
-    protected_mask = protected == 1
-    non_protected_mask = protected == 0
+    y_true = y_true.to(device)
+    y_pred = y_pred.to(device)
+    protected = protected.to(device)
+
+    protected_mask = (protected == 1)
+    non_protected_mask = (protected == 0)
 
     # EO: TPR ratio
     positive_true_mask = y_true == 1
-    tp_protected = np.sum((positive_true_mask & (y_pred == 1) & protected_mask))
-    tp_non_protected = np.sum((positive_true_mask & (y_pred == 1) & non_protected_mask))
-    pos_protected = np.sum(positive_true_mask & protected_mask)
-    pos_non_protected = np.sum(positive_true_mask & non_protected_mask)
-    EO = (tp_protected / pos_protected) / (tp_non_protected / pos_non_protected) if pos_protected > 0 and pos_non_protected > 0 else np.nan
+    tp_protected = torch.sum((positive_true_mask & (y_pred == 1) & protected_mask))
+    tp_non_protected = torch.sum((positive_true_mask & (y_pred == 1) & non_protected_mask))
 
-    # DI: Success ratio (TP + TN)
-    success_protected = np.sum(((y_true == y_pred) & protected_mask))
-    success_non_protected = np.sum(((y_true == y_pred) & non_protected_mask))
-    total_protected = np.sum(protected_mask)
-    total_non_protected = np.sum(non_protected_mask)
-    DI = (success_protected / total_protected) / (success_non_protected / total_non_protected) if total_protected > 0 and total_non_protected > 0 else np.nan
+    pos_protected = torch.sum(positive_true_mask & protected_mask)
+    pos_non_protected = torch.sum((positive_true_mask & non_protected_mask))
 
-    return EO, DI
+    EO = (tp_protected / pos_protected) / (tp_non_protected / pos_non_protected) \
+            if pos_protected > 0 and pos_non_protected > 0 else 0
+
+    EO_penalty = lambda_eo * torch.abs(tp_protected / pos_protected - tp_non_protected / pos_non_protected) \
+            if pos_protected > 0 and pos_non_protected > 0 else 0
+    EO = min(EO, 1 / EO) if EO > 0 else 0
+    # DI: Positive prediction ratio
+    success_protected = torch.sum((y_pred == 1) & protected_mask)
+    success_non_protected = torch.sum((y_pred == 1) & non_protected_mask)
+    
+    total_protected = torch.sum(protected_mask)
+    total_non_protected = torch.sum(non_protected_mask)
+    
+    DI = (success_protected / total_protected) / (success_non_protected / total_non_protected) \
+            if total_protected > 0 and total_non_protected > 0 else 0
+    DI_penalty = lambda_di * torch.abs(success_protected / total_protected - success_non_protected / total_non_protected) \
+        if total_protected > 0 and total_non_protected > 0 else 0
+    DI = min(DI,1/DI) if DI > 0 else 0
+    # AP: Accuracy parity
+    acc_protected = torch.sum(((y_pred == y_true) & protected_mask)) / total_protected \
+        if total_protected > 0 else 0
+    acc_non_protected = torch.sum(((y_pred == y_true) & non_protected_mask)) / total_non_protected \
+        if total_non_protected > 0 else 0
+    
+    AP = acc_protected / acc_non_protected \
+        if acc_protected > 0 and acc_non_protected > 0 else 0
+    
+    AP_penalty = lambda_ap * torch.abs(acc_protected - acc_non_protected) \
+        if acc_protected > 0 and acc_non_protected > 0 else 0
+    AP = min(AP, 1 / AP) if AP > 0 else 0
+    return EO,DI,AP,AP_penalty+DI_penalty+EO_penalty
 
 
 def imshow(img):
@@ -55,12 +83,18 @@ def imshow(img):
     plt.axis('off')
     plt.show()
 
-def train_model(model,vq,classifier, criterion, optimizer, train_loader, test_loader,adversarial = False ,ALPHA = 0.025,num_epochs=25):
+def train_model(model,vq,classifier, criterion, optimizer, train_loader, test_loader,
+                fair=False,ADV = False ,ALPHA = 0.025,num_epochs=25):
+    lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer,mode='min',patience=2)
     since = time.time()
     vq.eval()
     classifier.eval()
     vq.to(device)
     classifier.to(device)
+    scaler = torch.amp.GradScaler('cuda')
+    for param in model.parameters():
+        param.requires_grad = False
+    compiled_model = torch.compile(model)
     # Create a temporary directory to save training checkpoints
     with TemporaryDirectory() as tempdir:
         best_model_params_path = os.path.join(tempdir, 'best_model_params.pt')
@@ -69,16 +103,16 @@ def train_model(model,vq,classifier, criterion, optimizer, train_loader, test_lo
         best_acc = 0.0
 
         for epoch in range(num_epochs):
-
+            torch.cuda.empty_cache()
             # Each epoch has a training and validation phase
             for phase in ['train', 'val']:
                 if phase == 'train':
                     progress_bar = tqdm(train_loader,desc = f"Epoch {epoch+1}/{num_epochs}", unit="batch")
-                    model.train()  # Set model to training mode
+                    compiled_model.train()  # Set model to training mode
                 else:
                     print("Evaluating on validation set...")
                     progress_bar = tqdm(test_loader,desc = f"Epoch {epoch+1}/{num_epochs}", unit="batch")
-                    model.eval()   # Set model to evaluate mode
+                    compiled_model.eval()   # Set model to evaluate mode
 
                 running_loss = 0.0
                 running_corrects = 0
@@ -97,57 +131,62 @@ def train_model(model,vq,classifier, criterion, optimizer, train_loader, test_lo
                     # forward
                     # track history if only in train
                     with torch.set_grad_enabled(phase == 'train'):
-                        if adversarial_walk and phase == 'train':
+                        if ADV and phase == 'train':
                             h = vq.encoder(inputs)
                             h = vq.pre_vq_conv(h)
-                            output,perplexity = adversarial_walk(classifier, h, ALPHA,vq,device)
+                            output, _ = adversarial_walk(classifier, h, ALPHA, vq, device)
                             recon = vq.decoder(output).to(device)
-                            outputs = model(recon)
-                            _, preds = torch.max(outputs, 1)
-                            loss = criterion(outputs, labels)
-                        elif phase == 'train':
-                            outputs = model(inputs)
-                            _, preds = torch.max(outputs, 1)
-                            loss = criterion(outputs, labels)
+                            outputs = compiled_model(recon)
                         else:
-                            with torch.no_grad():
-                                outputs = model(inputs)
-                                _, preds = torch.max(outputs, 1)
-                                loss = criterion(outputs, labels)
-                        # backward + optimize only if in training phase
+                            outputs = compiled_model(inputs)
+
+                        _, preds = torch.max(outputs, 1)
+
+                        _,_,_,fair_penalty = fairness_metrics(labels, preds, protected)
+                        loss = fair_penalty+criterion(outputs, labels) \
+                                if fair else criterion(outputs, labels)
+
                         if phase == 'train':
                             loss.backward()
                             optimizer.step()
 
-                    # statistics
-                    running_loss += loss.item() * inputs.size(0)
-                    running_corrects += torch.sum(preds == labels.data)
-                    all_labels.extend(labels.cpu().numpy())
-                    all_preds.extend(preds.cpu().numpy())
-                    all_protected.extend(protected.cpu().numpy())
-                    progress_bar.set_postfix({"loss": f"{loss.item():.4f}"},refresh=True)
-
-                epoch_loss = running_loss / (train_loader.dataset.__len__() if phase == 'train' else test_loader.dataset.__len__())
-                epoch_acc = running_corrects.double() / (train_loader.dataset.__len__() if phase == 'train' else test_loader.dataset.__len__())
+                        # statistics
+                        running_loss += loss.item() * inputs.size(0)
+                        running_corrects += torch.sum(preds == labels.data)
+                        all_labels.extend(labels.cpu().numpy())
+                        all_preds.extend(preds.cpu().numpy())
+                        all_protected.extend(protected.cpu().numpy())
+                        progress_bar.set_postfix({"loss": f"{loss.item():.4f}"},refresh=True)
+                        del outputs, inputs, labels, protected,loss
+                        torch.cuda.empty_cache()
+                epoch_loss = running_loss / (train_loader.dataset.__len__()
+                         if phase == 'train' else test_loader.dataset.__len__())
+                epoch_acc = running_corrects.double() / (train_loader.dataset.__len__()
+                         if phase == 'train' else test_loader.dataset.__len__())
 
                 # Compute metrics
+                print('=='*10,'TRAINING',10*"==")
                 acc = accuracy_score(all_labels, all_preds)
                 f1 = f1_score(all_labels, all_preds, average='weighted')
                 precision = precision_score(all_labels, all_preds, average='weighted')
                 recall = recall_score(all_labels, all_preds, average='weighted')
-                EO, DI = fairness_metrics(all_labels, all_preds, all_protected)
+                EO, DI, AP, _ = fairness_metrics(all_labels, all_preds, all_protected)
                 print(f'{phase} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}')
                 print(f'{phase} Classification Report:')
                 print(f'Accuracy: {acc:.4f} | F1: {f1:.4f} | Precision: {precision:.4f} | Recall: {recall:.4f}')
                 print(classification_report(all_labels, all_preds, digits=4))
                 print("Confusion Matrix:",confusion_matrix(all_labels, all_preds))
-                print(f'Fairness Metrics - Equal Opportunity: {EO:.4f}, Impact Disparate: {DI:.4f}')
+                print(f'Fairness Metrics - Equal Opportunity: {EO:.4f}, Impact Disparate: {DI:.4f}, Accuracy Parity: {AP:.4f}')
                 # deep copy the model
+                if phase == 'val':
+                    lr_scheduler.step(epoch_loss)
                 if phase == 'val' and epoch_acc > best_acc:
+                    print('BETTER ACCURACY FOUND')
                     best_acc = epoch_acc
                     torch.save(model.state_dict(), best_model_params_path)
 
             print()
+
 
         time_elapsed = time.time() - since
         print(f'Training complete in {time_elapsed // 60:.0f}m {time_elapsed % 60:.0f}s')
@@ -195,7 +234,27 @@ def inference(model_path,vq,classifier, loader, transform,adversarial=False, ALP
     all_protected = []
 
     progress_bar = tqdm(loader, desc="Inference", unit="batch")
+    for inputs, labels, protected in progress_bar:
+        inputs = inputs.to(device)
+        labels = labels.to(device)
 
+        if adversarial:
+            # DO NOT use torch.no_grad() here!
+            h = vq.encoder(inputs)
+            h = vq.pre_vq_conv(h)
+            output, _ = adversarial_walk(classifier, h, ALPHA, vq, device)
+            recon = vq.decoder(output).to(device)
+            inputs = recon
+            outputs = model(inputs)
+        else:
+            outputs = model(inputs)
+
+        _, preds = torch.max(outputs, 1)
+        all_labels.extend(labels.cpu().numpy())
+        all_preds.extend(preds.cpu().numpy())
+        all_protected.extend(protected.cpu().numpy())
+
+        progress_bar.set_postfix({"Accuracy": f"{accuracy_score(all_labels, all_preds):.4f}"}, refresh=True)
     for inputs, labels, protected in progress_bar:
         inputs = inputs.to(device)
         labels = labels.to(device)
@@ -223,14 +282,14 @@ def inference(model_path,vq,classifier, loader, transform,adversarial=False, ALP
     f1 = f1_score(all_labels, all_preds, average='weighted')
     precision = precision_score(all_labels, all_preds, average='weighted')
     recall = recall_score(all_labels, all_preds, average='weighted')
-    EO, DI = fairness_metrics(all_labels, all_preds, all_protected)
+    EO, DI, AP,_ = fairness_metrics(all_labels, all_preds, all_protected)
     print(f'Inference Classification Report:')
     print(f'Accuracy: {acc:.4f} | F1: {f1:.4f} | Precision: {precision:.4f} | Recall: {recall:.4f}')
     print(classification_report(all_labels, all_preds, digits=4))
     print("Confusion Matrix:",confusion_matrix(all_labels, all_preds))
-    print(f'Fairness Metrics - Equal Opportunity: {EO:.4f}, Impact Disparate: {DI:.4f}')
+    print(f'Fairness Metrics - Equal Opportunity: {EO:.4f}, Impact Disparate: {DI:.4f}, Accuracy Parity: {AP:.4f}')
 
-def adversarial_walk(f,h,a,model,device,steps = 4):    #h = latent representations f = classifier
+def adversarial_walk(f,h,a,model,device,steps = 2):    #h = latent representations f = classifier
     h_delta = h.clone().detach().requires_grad_(True).to(device)
 
     e = 1e-12
@@ -251,105 +310,139 @@ def adversarial_walk(f,h,a,model,device,steps = 4):    #h = latent representatio
         h_delta = h_delta.requires_grad_(True)
 
     #print(h_delta)
-
+    torch.cuda.empty_cache()
     return h_delta,perplexity
 
-def fine_tune(model, criterion, optimizer, train_loader, test_loader, num_epochs=100, patience=5, min_delta=0.01):
+def fine_tune(model, vq, classifier, criterion, optimizer, train_loader, test_loader,
+              fair=False,ADV=False, ALPHA=0.025, num_epochs=20, patience=5, min_delta=0.005):
     since = time.time()
-    # Create a temporary directory to save training checkpoints
-    with TemporaryDirectory() as tempdir:
-        best_model_params_path = os.path.join(tempdir, 'best_model_params.pt')
+    best_acc = 0.0
+    epochs_no_improve = 0
+    scaler = torch.amp.GradScaler('cuda')
+    # Save model state before training
+    best_model_state = model.state_dict()
 
-        torch.save(model.state_dict(), best_model_params_path)
-        best_acc = 0.0
-        epochs_no_improve = 0
+    for param in model.parameters():
+        param.requires_grad = True
+    cudnn.benchmark = True  # Enable benchmark mode for faster training
+    compiled_model = torch.compile(model)
+    lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min')
+    for epoch in range(num_epochs):
+        print(f'Epoch {epoch+1}/{num_epochs}')
+        print('-' * 10)
+        torch.cuda.empty_cache()
+        for phase in ['train', 'val']:
+            if phase == 'train':
+                loader = train_loader
+                progress_bar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs}", unit="batch")
+                compiled_model.train()
+            else:
+                print("Evaluating on validation set...")
+                loader = test_loader
+                progress_bar = tqdm(test_loader, desc=f"Epoch {epoch+1}/{num_epochs}", unit="batch")
+                compiled_model.eval()
 
-        for param in model.parameters():
-            param.requires_grad = True
+            running_loss = 0.0
+            running_corrects = 0
+            all_labels = []
+            all_preds = []
+            all_protected = []
 
-        for epoch in range(num_epochs):
-            print(f'Epoch {epoch+1}/{num_epochs}')
-            print('-' * 10)
+            for inputs, labels, protected in progress_bar:
+                inputs = inputs.to(device)
+                labels = labels.to(device)
+                optimizer.zero_grad()
 
-            for phase in ['train', 'val']:
-                if phase == 'train':
-                    model.train()
-                    loader = train_loader
-                else:
-                    model.eval()
-                    loader = test_loader
-
-                running_loss = 0.0
-                running_corrects = 0
-                all_labels = []
-                all_preds = []
-                all_protected = []
-
-                for inputs, labels, protected in loader:
-                    inputs = inputs.to(device)
-                    labels = labels.to(device)
-                    optimizer.zero_grad()
-
-                    with torch.set_grad_enabled(phase == 'train'):
-                        outputs = model(inputs)
-                        _, preds = torch.max(outputs, 1)
-                        loss = criterion(outputs, labels)
-                        if phase == 'train':
-                            loss.backward()
-                            optimizer.step()
-
-                    running_loss += loss.item() * inputs.size(0)
-                    running_corrects += torch.sum(preds == labels.data)
-                    all_labels.extend(labels.cpu().numpy())
-                    all_preds.extend(preds.cpu().numpy())
-                    all_protected.extend(protected.cpu().numpy())
-
-                epoch_loss = running_loss / len(loader.dataset)
-                epoch_acc = running_corrects.double() / len(loader.dataset)
-
-                if phase == 'val':
-                    if epoch_acc > best_acc + min_delta:
-                        best_acc = epoch_acc
-                        epochs_no_improve = 0
+                with torch.set_grad_enabled(phase == 'train'):
+                    if ADV and phase == 'train':
+                        h = vq.encoder(inputs)
+                        h = vq.pre_vq_conv(h)
+                        output, _ = adversarial_walk(classifier, h, ALPHA, vq, device)
+                        recon = vq.decoder(output).to(device)
+                        outputs = compiled_model(recon)
                     else:
-                        epochs_no_improve += 1
+                        outputs = compiled_model(inputs)
+                    
+                    _, preds = torch.max(outputs, 1)
+                    _,_,_,fair_penalty = fairness_metrics(labels, preds, protected)
+                    loss = fair_penalty+criterion(outputs, labels) \
+                            if fair else criterion(outputs, labels)
 
-                    print(f'Val Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}')
-                    EO, DI = fairness_metrics(all_labels, all_preds, all_protected)
-                    print(f'Fairness Metrics - Equal Opportunity: {EO:.4f}, Impact Disparate: {DI:.4f}')
-                
-        
-            if phase == 'val' and epoch_acc > best_acc:
-                best_acc = epoch_acc
-                torch.save(model.state_dict(), best_model_params_path)
+                    if phase == 'train':
+                        scaler.scale(loss).backward()
+                        scaler.step(optimizer)
+                        scaler.update()
+                        
 
-            if epochs_no_improve >= patience:
-                print(f'Early stopping at epoch {epoch+1}')
-                break
+                running_loss += loss.item() * inputs.size(0)
+                running_corrects += torch.sum(preds == labels.data)
+                all_labels.extend(labels.cpu().numpy())
+                all_preds.extend(preds.cpu().numpy())
+                all_protected.extend(protected.cpu().numpy())
 
-            print()
+            epoch_loss = running_loss / len(loader.dataset)
+            epoch_acc = running_corrects.double() / len(loader.dataset)
 
-        time_elapsed = time.time() - since
-        print(f'Training complete in {time_elapsed // 60:.0f}m {time_elapsed % 60:.0f}s')
+            acc = accuracy_score(all_labels, all_preds)
+            f1 = f1_score(all_labels, all_preds, average='weighted')
+            precision = precision_score(all_labels, all_preds, average='weighted')
+            recall = recall_score(all_labels, all_preds, average='weighted')
+
+            print(f'Accuracy: {acc:.4f} | F1: {f1:.4f} | Precision: {precision:.4f} | Recall: {recall:.4f}')
+            print(classification_report(all_labels, all_preds, digits=4))
+            print("Confusion Matrix:", confusion_matrix(all_labels, all_preds))
+            if phase == 'val':
+                lr_scheduler.step(epoch_loss)
+                print(f'Val Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}')
+                EO,DI,AP,_ = fairness_metrics(all_labels, all_preds, all_protected)
+                print(f'Fairness Metrics - Equal Opportunity: {EO:.4f}, Impact Disparate: {DI:.4f}, Accuracy Parity: {AP:.4f}')
+
+                if epoch_acc > best_acc + min_delta:
+                    print('BETTER ACCURACY FOUND')
+                    best_acc = epoch_acc
+                    best_model_state = model.state_dict()  # save best weights
+                    epochs_no_improve = 0
+                else:
+                    epochs_no_improve += 1
+
+        if epochs_no_improve >= patience:
+            print(f'Early stopping at epoch {epoch+1}')
+            break
+
+        print()
+
+    time_elapsed = time.time() - since
+    print(f'Training complete in {time_elapsed // 60:.0f}m {time_elapsed % 60:.0f}s')
+
+    # Save the best model to disk
+    best_model_path = "best_finetuned_model.pt"
+
+    print(f"Best model saved to {best_model_path}")
+
+    # Load the best model back before returning
+    model.load_state_dict(best_model_state)
+
     return model
 
-def create_model(vq,classifier,train,test,name = 'ResNet18.pth',adversarial = False, ALPHA = 0.025):
+
+def create_model(vq,classifier,train,test,epoch_head ,epoch_tune,fair=False,patience=15,delta = 0.01,name = 'ResNet18.pth',adversarial = False, ALPHA = 0.025):
     transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.Resize((256,256))
         ])
 
     res = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
-    for param in res.parameters():
-        param.requires_grad = False
     res.fc = nn.Linear(res.fc.in_features, 2)
     res.to(device)
-    res_criterion = nn.CrossEntropyLoss()
-    res_optimizer = optim.SGD(res.parameters(), lr=1e-3,momentum=0.9)
+    res_criterion = nn.CrossEntropyLoss(label_smoothing=0.05)
+    res_optimizer = optim.SGD(res.parameters(), lr=1e-2,weight_decay=1e-6, momentum=0.9)
 
 
-    res = train_model(res,vq,classifier, res_criterion, res_optimizer, train, test, num_epochs=5,adversarial=adversarial, ALPHA=ALPHA)
-    res = fine_tune(res, res_criterion, res_optimizer, train, test, num_epochs=100, patience=10, min_delta=0.01)
+    res = train_model(res,vq, classifier, res_criterion, res_optimizer, train, test,
+                      fair=fair,num_epochs=epoch_head,ADV=adversarial, ALPHA=ALPHA)
+    
+    res = fine_tune(res, vq, classifier, res_criterion, res_optimizer, train, test,
+        fair=fair, ADV=adversarial, ALPHA = ALPHA, num_epochs=epoch_tune, patience=patience, min_delta=delta)
     torch.save(res.state_dict(), name)
 
     visualize_model(res,test, num_images=32)

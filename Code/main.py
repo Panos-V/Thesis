@@ -47,7 +47,7 @@ def adversarial_walk(f,h,a,model,device,steps = 5):    #h = latent representatio
     return h_delta,perplexity
 
 
-
+torch.set_float32_matmul_precision('high')
 transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Resize((256,256))
@@ -65,13 +65,13 @@ skin_train,skin_test = SkinCancerData.CreateLoader(path, transform, batch_size)
 
 
 
-ALPHA = 0.09
+ALPHA = 0.085
 TRAIN = False
 Train_f = False
 LOAD_VQ = True
-LOAD_F = False
+LOAD_F = True
 
-epochs = 100
+epochs = 300
 
 num_hiddens = 512
 num_residual_hiddens = 32
@@ -80,7 +80,7 @@ embedding_dim = 64
 num_embeddings = 2056
 commitment_cost = 0.35
 decay = 0.99
-learning_rate = 0.001
+learning_rate = 0.0001
 
 
 
@@ -116,10 +116,10 @@ else:
 
 f = simple_classifier.classifier(embedding_dim*64*64,2,device).to(device)
 
-f_optimizer = optim.SGD(f.parameters(),lr = 0.001, momentum=0.9)
+f_optimizer = optim.Adam(f.parameters(),lr = 1e-3)
 f_criterion = nn.CrossEntropyLoss()
-epochs_f = 10
-
+epochs_f = 50
+torch.cuda.empty_cache()
 if Train_f:
 
     simple_classifier.train_classifier(vq,f,
@@ -149,6 +149,7 @@ else:
     outputs = to_PIL(outputs)
     outputs.save('outputs.png')
 torch.cuda.empty_cache()
-#res = resnet.create_model(vq,f,skin_train, skin_test, 'biased_resnet20_V2.pth',adversarial=False, ALPHA=ALPHA)
-res = resnet.inference('biased_resnet20_V2.pth',vq,f,skin_test,transform,adversarial=False, ALPHA=ALPHA)
+res = resnet.create_model(vq,f,skin_train, skin_test,fair=False,epoch_head=5,epoch_tune=100,
+                        patience=10,name='unbiased_resnet20A02_100.pth',adversarial=True, ALPHA=ALPHA)
+res = resnet.inference('unbiased_resnet20A02_100.pth',vq,f,skin_test,transform,adversarial=False, ALPHA=ALPHA)
 print(res)

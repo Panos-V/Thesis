@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
-
+import torch.backends.cudnn as cudnn
 """https://colab.research.google.com/github/zalandoresearch/pytorch-vq-vae/blob/master/vq-vae.ipynb#scrollTo=RelHBLryfjcK"""
 
 
@@ -205,6 +205,8 @@ def train_model(model, epochs, optimizer, criterion, dataloader, load=False, sav
         epochs = load_checkpoint(checkpoint,model,optimizer,epochs)
 
     scaler = torch.amp.GradScaler()
+    cudnn.benchmark = True  # Enable benchmark mode for faster training
+
     for epoch_idx in range(epochs):
     
         progress_bar = tqdm(dataloader,desc = f"Epoch {epoch_idx+1}/{epochs}", unit="batch")

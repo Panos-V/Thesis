@@ -2,21 +2,30 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
-
+import torch.backends.cudnn as cudnn
 
 
 class classifier(nn.Module):
     def __init__(self,in_channels,num_classes,device):
         super(classifier,self).__init__()
         self.device = device
-        self.fc1 = nn.Linear(in_channels, 100)
-        self.fc2 = nn.Linear(100,num_classes)
+        self.fc1 = nn.Linear(in_channels, 1024)
+        self.ln1 = nn.LayerNorm(1024)
+
+        self.fc2 = nn.Linear(1024, 512)
+        self.ln2 = nn.LayerNorm(512)
+        self.fc3 = nn.Linear(512,128)
+        self.ln3 = nn.LayerNorm(128)
+        self.fc4 = nn.Linear(128,num_classes)
+        self.dropout = nn.Dropout(0.2)
         
     def forward(self,x):
         x = torch.flatten(x,1)
 
-        x = F.relu(self.fc1(x))
-        x = self.fc2(x)
+        x = F.relu(self.ln1(self.dropout(self.fc1(x))))
+        x = F.relu(self.ln2(self.dropout(self.fc2(x))))
+        x = F.relu(self.ln3(self.dropout(self.fc3(x))))
+        x = self.fc4(x)
 
         return x
 
@@ -32,13 +41,14 @@ def load_checkpoint(checkpoint,model,optimizer,epoch):
 
 def train_classifier(model,classifier,epochs,optimizer,criterion,dataloader,load=False,save_period=3):
     scaler = torch.amp.GradScaler()
-
+    cudnn.benchmark = True
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min')
     if load:
         checkpoint = torch.load("checkpointf.tar")
         epochs = load_checkpoint(checkpoint,model,optimizer,epochs)
 
     for epoch_idx in range(epochs):
-        progress2 = tqdm(dataloader,desc = f"Epoch {epoch_idx+1}", unit="batch")
+        progress2 = tqdm(dataloader,desc = f"Epoch {epoch_idx+1}/{epochs}", unit="batch")
         total_loss = 0
         for im,label,_ in progress2:
             im = im.to(model.device)
@@ -59,6 +69,7 @@ def train_classifier(model,classifier,epochs,optimizer,criterion,dataloader,load
             total_loss += loss.item()
             
             progress2.set_postfix({"loss": f"{loss.item():.4f}"},refresh=True)
+        scheduler.step(total_loss/len(dataloader))
         if (epoch_idx + 1) % save_period == 0:
             checkpoint = {
                 'state_dict': model.state_dict(),
