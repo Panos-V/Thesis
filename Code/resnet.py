@@ -91,7 +91,7 @@ def train_model(model,vq,classifier, criterion, optimizer, train_loader, test_lo
     classifier.eval()
     vq.to(device)
     classifier.to(device)
-
+    
     compiled_model = torch.compile(model)
     cudnn.benchmark = True  # Enable benchmark mode for faster training
     # Create a temporary directory to save training checkpoints
@@ -179,7 +179,7 @@ def train_model(model,vq,classifier, criterion, optimizer, train_loader, test_lo
                 print(f'Fairness Metrics - Equal Opportunity: {EO:.4f}, Impact Disparate: {DI:.4f}, Accuracy Parity: {AP:.4f}')
                 # deep copy the model
                 if phase == 'val':
-                    lr_scheduler.step(epoch_loss)
+                    lr_scheduler.step(f1)
                 if phase == 'val' and epoch_acc > best_acc:
                     print('BETTER ACCURACY FOUND')
                     best_acc = epoch_acc
@@ -317,6 +317,7 @@ def fine_tune(model, vq, classifier, criterion, optimizer, train_loader, test_lo
               fair=False,ADV=False, ALPHA=0.025, num_epochs=20, patience=5, min_delta=0.005):
     since = time.time()
     best_acc = 0.0
+    best_f1 = 0.0
     epochs_no_improve = 0
     vq.eval()
     classifier.eval()
@@ -392,7 +393,7 @@ def fine_tune(model, vq, classifier, criterion, optimizer, train_loader, test_lo
             print(classification_report(all_labels, all_preds, digits=4))
             print("Confusion Matrix:", confusion_matrix(all_labels, all_preds))
             if phase == 'val':
-                lr_scheduler.step(epoch_loss)
+                lr_scheduler.step(f1)
                 print(f'Val Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}')
                 EO,DI,AP,_ = fairness_metrics(all_labels, all_preds, all_protected)
                 print(f'Fairness Metrics - Equal Opportunity: {EO:.4f}, Impact Disparate: {DI:.4f}, Accuracy Parity: {AP:.4f}')
@@ -400,6 +401,11 @@ def fine_tune(model, vq, classifier, criterion, optimizer, train_loader, test_lo
                 if epoch_acc > best_acc + min_delta:
                     print('BETTER ACCURACY FOUND')
                     best_acc = epoch_acc
+                    best_model_state = model.state_dict()  # save best weights
+                    epochs_no_improve = 0
+                elif f1 > best_f1 + min_delta:
+                    print('BETTER F1 SCORE FOUND')
+                    best_f1 = f1
                     best_model_state = model.state_dict()  # save best weights
                     epochs_no_improve = 0
                 else:
@@ -438,7 +444,7 @@ def create_model(vq,classifier,train,test,epoch_head ,epoch_tune,fair=False,pati
     res.fc = nn.Linear(res.fc.in_features, 2)
     res.to(device)
     res_criterion = nn.CrossEntropyLoss(weight=torch.tensor([1,1.5],dtype=torch.float32,device=device))
-    res_optimizer = optim.AdamW(res.parameters(), lr=1e-3, weight_decay=1e-5)
+    res_optimizer = optim.AdamW(res.parameters(), lr=5e-4, weight_decay=1e-5)
 
     res = train_model(res,vq, classifier, res_criterion, res_optimizer, train, test,
                       fair=fair,num_epochs=epoch_head,ADV=adversarial, ALPHA=ALPHA)

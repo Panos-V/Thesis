@@ -203,7 +203,7 @@ for _, row in malignant_test_df.iterrows():
         aug_image = inpaint_image(aug_image)
         save_path = os.path.join('augmented_malignant_test', f"{image_name}_aug{i}.jpg")
         save_image(aug_image, save_path)
-
+""" 
 # Augment protected cases in train
 protected_train_df = train[train['protected'] == 1]
 os.makedirs('augmented_protected_train', exist_ok=True)
@@ -232,4 +232,4 @@ for _, row in protected_test_df.iterrows():
         aug_image = protected_transform(image)
         aug_image = inpaint_image(aug_image)
         save_path = os.path.join('augmented_protected_test', f"{image_name}_aug{i}.jpg")
-        save_image(aug_image, save_path)
+        save_image(aug_image, save_path) """
