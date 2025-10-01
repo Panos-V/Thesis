@@ -13,3 +13,7 @@ checkpoint.tar
 checkpointVQ.tar
 checkpointf.tar
 Code/archive/pad
+Code/archive/augmented*
+Code/archive/colored*
+best_finetuned_model.pt
+Code/models/*

@@ -10,21 +10,21 @@ class classifier(nn.Module):
         super(classifier,self).__init__()
         self.device = device
         self.fc1 = nn.Linear(in_channels, 1024)
-        self.ln1 = nn.LayerNorm(1024)
+        self.bn1 = nn.BatchNorm1d(1024)
 
         self.fc2 = nn.Linear(1024, 512)
-        self.ln2 = nn.LayerNorm(512)
+        self.bn2 = nn.BatchNorm1d(512)
         self.fc3 = nn.Linear(512,128)
-        self.ln3 = nn.LayerNorm(128)
+        self.bn3 = nn.BatchNorm1d(128)
         self.fc4 = nn.Linear(128,num_classes)
-        self.dropout = nn.Dropout(0.2)
+        self.dropout = nn.Dropout(0.5)
         
     def forward(self,x):
         x = torch.flatten(x,1)
 
-        x = F.relu(self.ln1(self.dropout(self.fc1(x))))
-        x = F.relu(self.ln2(self.dropout(self.fc2(x))))
-        x = F.relu(self.ln3(self.dropout(self.fc3(x))))
+        x = F.leaky_relu(self.bn1(self.dropout(self.fc1(x))))
+        x = F.leaky_relu(self.bn2(self.dropout(self.fc2(x))))
+        x = F.leaky_relu(self.bn3(self.dropout(self.fc3(x))))
         x = self.fc4(x)
 
         return x

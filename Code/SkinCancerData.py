@@ -17,10 +17,10 @@ class CustomDataset(Dataset):
     def __init__(self,path,mode,transform=None):
         self.mode = mode
         self.path = path
-        self.csv_path = path + mode + "_metadata.csv"
+        self.csv_path = path + mode + "_metadata2.csv"
         self.csv = pd.read_csv(self.csv_path)
         if mode == 'train':
-            self.csv = self.csv[self.csv['protected'] == 0] # Filter out protected individuals for 100% bias in data
+           self.csv = self.csv[self.csv['protected'] == 0] # Filter out protected individuals for 100% bias in data
 
         self.transform = transform
         
@@ -45,9 +45,9 @@ class CustomDataset(Dataset):
 def CreateLoader(path,transform,batch_size):
     train = CustomDataset(path,'train',transform=transform)   
     test = CustomDataset(path,'test',transform=transform)
-    train_loader = DataLoader(train,batch_size=batch_size, shuffle = True,num_workers=12,pin_memory=True)
-    test_loader = DataLoader(test,batch_size=batch_size, shuffle = False,num_workers=12,pin_memory=True)
-    
+    train_loader = DataLoader(train,batch_size=batch_size, shuffle = True,num_workers=8,pin_memory=True)
+    test_loader = DataLoader(test,batch_size=batch_size, shuffle = False,num_workers=8,pin_memory=True)
+
     return train_loader,test_loader
     
     

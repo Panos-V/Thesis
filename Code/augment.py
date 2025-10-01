@@ -141,13 +141,6 @@ test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False, num_workers
     grid = make_grid(images, nrow=8, padding=2)
     save_image(grid, 'train_batch.png')
     break  # Remove this to process all batches """
-
-malignant_df = train[train['benign_malignant'] == 'malignant']
-
-os.makedirs('augmented_malignant_train', exist_ok=True)
-
-
-
 def inpaint_image(tensor_img):
     # Convert tensor to numpy array and transpose to HWC
     image_np = tensor_img.mul(255).byte().numpy()
@@ -176,32 +169,40 @@ def inpaint_image(tensor_img):
     inpainted_tensor = transforms.ToTensor()(inpainted)
     return inpainted_tensor
 
+
+
+os.makedirs('augmented_malignant_train', exist_ok=True)
+malignant_df = train[(train['benign_malignant'] == 'malignant') & (~train['image_name'].str.contains('aug'))]
+print(malignant_df.shape)
 # Augment malignant cases in train
 for _, row in malignant_df.iterrows():
+
     image_name = row['image_name']
     image_path = os.path.join('train', image_name + '.jpg')
     if not os.path.exists(image_path):
         continue
     image = Image.open(image_path).convert('RGB')
-    for i in range(15):
+    for i in range(50):
         aug_image = malignant_transform(image)
         aug_image = inpaint_image(aug_image)
-        save_path = os.path.join('augmented_malignant_train', f"{image_name}_aug{i}.jpg")
+        save_path = os.path.join('augmented_malignant_train', f"{image_name}_aug{i}V2.jpg")
         save_image(aug_image, save_path)
 
 # Augment malignant cases in test
-malignant_test_df = test[test['benign_malignant'] == 'malignant']
+malignant_test_df = test[(test['benign_malignant'] == 'malignant') & (~test['image_name'].str.contains('aug'))]
 os.makedirs('augmented_malignant_test', exist_ok=True)
+print(malignant_test_df.shape)
 for _, row in malignant_test_df.iterrows():
+
     image_name = row['image_name']
-    image_path = os.path.join('merge', image_name + '.jpg')
+    image_path = os.path.join('test', image_name + '.jpg')
     if not os.path.exists(image_path):
         continue
     image = Image.open(image_path).convert('RGB')
-    for i in range(20):
+    for i in range(85):
         aug_image = malignant_transform(image)
         aug_image = inpaint_image(aug_image)
-        save_path = os.path.join('augmented_malignant_test', f"{image_name}_aug{i}.jpg")
+        save_path = os.path.join('augmented_malignant_test', f"{image_name}_aug{i}V2.jpg")
         save_image(aug_image, save_path)
 """ 
 # Augment protected cases in train

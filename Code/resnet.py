@@ -85,7 +85,7 @@ def imshow(img):
 
 def train_model(model,vq,classifier, criterion, optimizer, train_loader, test_loader,
                 fair=False,ADV = False ,ALPHA = 0.025,num_epochs=25):
-    lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer,mode='min',patience=2)
+    lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer,mode='min',patience=2,min_lr=1e-5)
     since = time.time()
     vq.eval()
     classifier.eval()
@@ -181,7 +181,7 @@ def train_model(model,vq,classifier, criterion, optimizer, train_loader, test_lo
                 if phase == 'val':
                     lr_scheduler.step(f1)
                 if phase == 'val' and epoch_acc > best_acc:
-                    print('BETTER ACCURACY FOUND')
+                    print('\n\n BETTER ACCURACY FOUND\n\n')
                     best_acc = epoch_acc
                     torch.save(model.state_dict(), best_model_params_path)
 
@@ -221,11 +221,8 @@ def visualize_model(model, loader, num_images=32):
                     plt.savefig('predictions.png')
                     return
 
-def inference(model_path,vq,classifier, loader, transform,adversarial=False, ALPHA=0.025):
+def inference(model,model_path,vq,classifier, loader, transform,adversarial=False, ALPHA=0.025):
     # Load model architecture
-    model = models.resnet18(weights=None)
-    model.fc = nn.Linear(model.fc.in_features, 2)
-    model.load_state_dict(torch.load(model_path, map_location=device))
     model.to(device)
     model.eval()
 
@@ -239,13 +236,12 @@ def inference(model_path,vq,classifier, loader, transform,adversarial=False, ALP
         labels = labels.to(device)
 
         if adversarial:
-            # DO NOT use torch.no_grad() here!
+            
             h = vq.encoder(inputs)
             h = vq.pre_vq_conv(h)
             output, _ = adversarial_walk(classifier, h, ALPHA, vq, device)
             recon = vq.decoder(output).to(device)
-            inputs = recon
-            outputs = model(inputs)
+            outputs = model(recon)
         else:
             outputs = model(inputs)
 
@@ -289,32 +285,34 @@ def inference(model_path,vq,classifier, loader, transform,adversarial=False, ALP
     print("Confusion Matrix:",confusion_matrix(all_labels, all_preds))
     print(f'Fairness Metrics - Equal Opportunity: {EO:.4f}, Impact Disparate: {DI:.4f}, Accuracy Parity: {AP:.4f}')
 
-def adversarial_walk(f,h,a,model,device,steps = 2):    #h = latent representations f = classifier
+def adversarial_walk(f,h,a,model,device,steps = 4):    #h = latent representations f = classifier
     h_delta = h.clone().detach().requires_grad_(True).to(device)
 
+    for p in f.parameters():
+        p.requires_grad_(False)
+    for p in model.parameters():
+        p.requires_grad_(False)
+
     e = 1e-12
-    for i in range(steps):
+    for i in range(steps): 
         prediction = f(h_delta)
         prediction = torch.softmax(prediction, dim=1)
         entropy = -torch.special.entr(prediction + e).sum(dim=1).mean()
-        gradient = torch.autograd.grad(entropy, h_delta, retain_graph=True)[0]
+        gradient = torch.autograd.grad(entropy, h_delta,create_graph=False)[0]
 
 
         delta = (gradient - gradient.mean()) / (gradient.std() + e)    
 
-        h_delta = h_delta + a*delta
-
+        h_delta = (h_delta + a*delta).detach().requires_grad_(True)
         _,h_delta,perplexity,_ = model.vq(h_delta)
 
-        
-        h_delta = h_delta.requires_grad_(True)
 
-    #print(h_delta)
+
     torch.cuda.empty_cache()
     return h_delta,perplexity
 
 def fine_tune(model, vq, classifier, criterion, optimizer, train_loader, test_loader,
-              fair=False,ADV=False, ALPHA=0.025, num_epochs=20, patience=5, min_delta=0.005):
+              fair=False, ADV=False, ALPHA=0.025, num_epochs=20, patience=5, min_delta=0.005):
     since = time.time()
     best_acc = 0.0
     best_f1 = 0.0
@@ -323,12 +321,13 @@ def fine_tune(model, vq, classifier, criterion, optimizer, train_loader, test_lo
     classifier.eval()
     # Save model state before training
     best_model_state = model.state_dict()
+    best_model_path = "best_finetuned_model.pt"
 
     for param in model.parameters():
         param.requires_grad = True
     cudnn.benchmark = True  # Enable benchmark mode for faster training
     compiled_model = torch.compile(model)
-    lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min')
+    lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', min_lr=1e-5)
     for epoch in range(num_epochs):
         print(f'Epoch {epoch+1}/{num_epochs}')
         print('-' * 10)
@@ -366,21 +365,20 @@ def fine_tune(model, vq, classifier, criterion, optimizer, train_loader, test_lo
                         outputs = compiled_model(inputs)
                     
                     _, preds = torch.max(outputs, 1)
-                    _,_,_,fair_penalty = fairness_metrics(labels, preds, protected)
-                    loss = fair_penalty+criterion(outputs, labels) \
-                            if fair else criterion(outputs, labels)
+                    _, _, _, fair_penalty = fairness_metrics(labels, preds, protected)
+                    loss = fair_penalty + criterion(outputs, labels) \
+                        if fair else criterion(outputs, labels)
 
                     if phase == 'train':
                         loss.backward()
                         optimizer.step()
-                        
 
                 running_loss += loss.item() * inputs.size(0)
                 running_corrects += torch.sum(preds == labels.data)
                 all_labels.extend(labels.cpu().numpy())
                 all_preds.extend(preds.cpu().numpy())
                 all_protected.extend(protected.cpu().numpy())
-                progress_bar.set_postfix({"loss": f"{loss.item():.4f}"},refresh=True)
+                progress_bar.set_postfix({"loss": f"{loss.item():.4f}"}, refresh=True)
             epoch_loss = running_loss / len(loader.dataset)
             epoch_acc = running_corrects.double() / len(loader.dataset)
 
@@ -395,18 +393,14 @@ def fine_tune(model, vq, classifier, criterion, optimizer, train_loader, test_lo
             if phase == 'val':
                 lr_scheduler.step(f1)
                 print(f'Val Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}')
-                EO,DI,AP,_ = fairness_metrics(all_labels, all_preds, all_protected)
+                EO, DI, AP, _ = fairness_metrics(all_labels, all_preds, all_protected)
                 print(f'Fairness Metrics - Equal Opportunity: {EO:.4f}, Impact Disparate: {DI:.4f}, Accuracy Parity: {AP:.4f}')
 
-                if epoch_acc > best_acc + min_delta:
-                    print('BETTER ACCURACY FOUND')
-                    best_acc = epoch_acc
+                if acc > best_acc + min_delta:
+                    print('\n\n BETTER ACCURACY FOUND\n\n')
+                    best_acc = acc
                     best_model_state = model.state_dict()  # save best weights
-                    epochs_no_improve = 0
-                elif f1 > best_f1 + min_delta:
-                    print('BETTER F1 SCORE FOUND')
-                    best_f1 = f1
-                    best_model_state = model.state_dict()  # save best weights
+                    torch.save(best_model_state, best_model_path)  # Save to disk immediately
                     epochs_no_improve = 0
                 else:
                     epochs_no_improve += 1
@@ -420,35 +414,33 @@ def fine_tune(model, vq, classifier, criterion, optimizer, train_loader, test_lo
     time_elapsed = time.time() - since
     print(f'Training complete in {time_elapsed // 60:.0f}m {time_elapsed % 60:.0f}s')
 
-    # Save the best model to disk
-    best_model_path = "best_finetuned_model.pt"
-
     print(f"Best model saved to {best_model_path}")
 
     # Load the best model back before returning
-    model.load_state_dict(best_model_state)
+    model.load_state_dict(torch.load(best_model_path, map_location=device))
 
     return model
 
 
-def create_model(vq,classifier,train,test,epoch_head ,epoch_tune,fair=False,patience=15,delta = 0.01,name = 'ResNet18.pth',adversarial = False, ALPHA = 0.025):
+def create_model(vq,classifier,train,test,epoch_head ,epoch_tune,fair=False,patience=15,delta = 0.005,name = 'ResNet18.pth',adversarial = False, ALPHA = 0.025):
     transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.Resize((256,256))
         ])
 
-    res = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
+    res = models.resnet152(weights=models.ResNet152_Weights.DEFAULT)
+
     for param in res.parameters():
         param.requires_grad = False
-
+#if resnet: res.fc if densenet: res.classifier if efficientnet: res.classifier[1]
     res.fc = nn.Linear(res.fc.in_features, 2)
     res.to(device)
-    res_criterion = nn.CrossEntropyLoss(weight=torch.tensor([1,1.5],dtype=torch.float32,device=device))
+    res_criterion = nn.CrossEntropyLoss()
     res_optimizer = optim.AdamW(res.parameters(), lr=5e-4, weight_decay=1e-5)
 
     res = train_model(res,vq, classifier, res_criterion, res_optimizer, train, test,
                       fair=fair,num_epochs=epoch_head,ADV=adversarial, ALPHA=ALPHA)
-    
+    torch.cuda.empty_cache()
     res = fine_tune(res, vq, classifier, res_criterion, res_optimizer, train, test,
         fair=fair, ADV=adversarial, ALPHA = ALPHA, num_epochs=epoch_tune, patience=patience, min_delta=delta)
     torch.save(res.state_dict(), name)
