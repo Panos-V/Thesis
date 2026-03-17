@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
-
+import torch.backends.cudnn as cudnn
 """https://colab.research.google.com/github/zalandoresearch/pytorch-vq-vae/blob/master/vq-vae.ipynb#scrollTo=RelHBLryfjcK"""
 
 
@@ -176,44 +176,80 @@ class model(nn.Module):
         self.decoder = decoder(embedding_dim, num_hiddens,num_residual_layers,num_residual_hiddens)
     
     def forward(self,x):
+
         x = self.encoder(x)
         x = self.pre_vq_conv(x)
         loss , quantized , perplexity,_ = self.vq(x)
 
         x_recon = self.decoder(quantized)
         
+        #x_recon = x_recon.clone()
+        #x_recon[:, 1, :, :] = torch.clamp_(x_recon[:, 1, :, :], max=120.0 / 255.0)  #inplace clamp with clone does not change the computation graph
         return loss,x_recon,perplexity
     
-    
-def train_model(model,epochs,optimizer,criterion,dataloader):
+def save_checkpoint(state,filename='checkpointVQ.tar'):
+    print("=> Saving checkpoint")
+    torch.save(state,filename)
+
+def load_checkpoint(checkpoint,model,optimizer,epoch):
+    print("=> Loading checkpoint")
+    model.load_state_dict(checkpoint['state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer'])
+    return epoch - checkpoint['epoch']
+
+def train_model(model, epochs, optimizer, criterion, dataloader, load=False, save_period=3):
     model.train()
+
+    if load:
+        checkpoint = torch.load("checkpointVQ.tar")
+        epochs = load_checkpoint(checkpoint,model,optimizer,epochs)
+
+    scaler = torch.amp.GradScaler()
+    cudnn.benchmark = True  # Enable benchmark mode for faster training
+
     for epoch_idx in range(epochs):
     
-        progress_bar = tqdm(dataloader,desc = f"Epoch {epoch_idx+1}", unit="batch")
+        progress_bar = tqdm(dataloader,desc = f"Epoch {epoch_idx+1}/{epochs}", unit="batch")
         total_loss = 0
+        total_perp = 0
         for im,label,_ in progress_bar:
+            
             im = im.to(model.device)
             label = label.to(model.device)
             optimizer.zero_grad()
-    
-            vq_loss, data_recon , perplexity = model(im)
-            recon_loss = criterion(data_recon,im)
+
+            with torch.amp.autocast("cuda"):
+                vq_loss, data_recon , perplexity = model(im)
+                recon_loss = criterion(data_recon,im)
+                loss = recon_loss + vq_loss
+
+
+            scaler.scale(loss).backward()
             
-            loss = recon_loss + vq_loss
+            scaler.step(optimizer)
+            scaler.update()
             
-            total_loss += loss
-            
-            loss.backward()
-            
-            optimizer.step()
-            
-            progress_bar.set_postfix({"loss": f"{loss.item():.4f}"},refresh=True)
+            total_loss += loss.item()
+            total_perp += perplexity.item()
+
+            progress_bar.set_postfix({"loss": f"{loss.item():.4f}","Perplexity": f"{perplexity.item():.4f}"},refresh=True)
+        if (epoch_idx + 1) % save_period == 0:
+            checkpoint = {
+                'state_dict': model.state_dict(),
+                'optimizer': optimizer.state_dict(),
+                'epoch':epoch_idx
+            }
+            save_checkpoint(checkpoint)
+
         print(f"Average loss for epoch {epoch_idx+1}: {total_loss/len(dataloader)}")
+        print(f"Average perplexity for epoch {epoch_idx+1}: {total_perp/len(dataloader)}")
+
+
+        
     
     torch.save(model.state_dict(), "vqvae.pth")
-    
-    
-    
-    
-    
-    
+
+
+
+
+

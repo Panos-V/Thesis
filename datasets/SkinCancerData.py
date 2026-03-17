@@ -14,33 +14,40 @@ def imshow(img):
     plt.show()
 
 class CustomDataset(Dataset):
-    def __init__(self,path,transform=None):
+    def __init__(self,path,mode,transform=None):
+        self.mode = mode
         self.path = path
-        self.csv_path = path + "metadata_with_augments.csv"
+        self.csv_path = path + mode + "_metadata2.csv"
         self.csv = pd.read_csv(self.csv_path)
+        if mode == 'train':
+           self.csv = self.csv[self.csv['protected'] == 0] # Filter out protected individuals for 100% bias in data
+
         self.transform = transform
         
     def __len__(self):
         return len(self.csv)
     
     def __getitem__(self, index):
-        path = os.path.join(str(self.path) + 'train/' + str(self.csv.iloc[index].iloc[0] + '.jpg'))
-        image = Image.open(path)
-        label = self.csv.iloc[index].iloc[7]
+        path = os.path.join(str(self.path) + self.mode + '/' + str(self.csv.iloc[index].iloc[0] + '.jpg'))
+        image = Image.open(path).convert("RGB")  # Ensure image is RGB
+        label = 1 if self.csv.iloc[index].iloc[5] == 'malignant' else 0
         if self.transform:
             image = self.transform(image)
             
         label = torch.tensor(label)
         
-        return image,label,label
+        protected = torch.tensor(self.csv.iloc[index].iloc[6])
+
+
+        return image,label,protected
     
 
 def CreateLoader(path,transform,batch_size):
-    data = CustomDataset(path,transform=transform)   
-    train, test = torch.utils.data.random_split(data, [0.8, 0.2])
-    train_loader = DataLoader(train,batch_size=batch_size, shuffle = True)
-    test_loader = DataLoader(data,batch_size=batch_size, shuffle = False)
-    
+    train = CustomDataset(path,'train',transform=transform)   
+    test = CustomDataset(path,'test',transform=transform)
+    train_loader = DataLoader(train,batch_size=batch_size, shuffle = True,num_workers=8,pin_memory=True)
+    test_loader = DataLoader(test,batch_size=batch_size, shuffle = False,num_workers=8,pin_memory=True)
+
     return train_loader,test_loader
     
     
