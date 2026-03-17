@@ -1,9 +1,7 @@
-Code/archive/train
-Code/__pycache__
-Code/augmented
-classifier.pth
-Code/classifier.pth
-original.png
-outputs.png
-recons.png
-original2.png
+# Data files
+archive/train
+augmented
+coloredmnist_data/
+data
+
+__pycache__
