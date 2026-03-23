@@ -42,6 +42,18 @@ class CustomDataset(Dataset):
         return image,label,protected
     
 
+class Fitzpatrick(Dataset):
+    def __init__(self):
+        super().__init__()
+        pass
+
+    def __len__(self):
+        pass
+
+    def __getitem__(self, index):
+        pass
+
+
 def CreateLoader(path,transform,batch_size):
     train = CustomDataset(path,'train',transform=transform)   
     test = CustomDataset(path,'test',transform=transform)

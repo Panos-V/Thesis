@@ -1,7 +1,9 @@
-import torch
-from models.trainer import Trainer
 from argparse import ArgumentParser
 import os
+
+import utils
+from models.trainer import Trainer
+
 from thop import profile
 
 def train(args):
@@ -35,6 +37,8 @@ if __name__ == '__main__':
 
     # model
     parser.add_argument('--n_class', default=2, type=int)
+    parser.add_arguement('--train', default="full", type=str, help='full (whole network) |' \
+                                'vqvae (only train vqvae) | classifier (only train classifier)')
     parser.add_argument('--strong_classifier', default='base_resnet18', type=str,
                         help='base_resnet18 | base_efficientnet_b0 | base_densenet121')
     parser.add_argument('--loss', default='ce', type=str)

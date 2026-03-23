@@ -2,6 +2,16 @@ import models
 from torch.optim import lr_scheduler
 
 def define_net(args):
+    if args.train == 'vqvae':
+        nets = models.addNetworks.VQVAE(), None
+    elif args.train == 'classifier':
+        nets = None, models.addNetworks.Classifier(num_classes=args.n_class)
+    elif args.train == 'full':
+        nets = models.addNetworks.VQVAE(), models.addNetworks.Classifier(num_classes=args.n_class)
+
+    return nets
+
+def define_strong_net(args):
     if args.strong_classifier == 'base_resnet18':
         net = models.addNetworks.base_resnet18(num_classes=args.n_class)
     elif args.strong_classifier == 'base_efficientnet_b0':

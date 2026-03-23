@@ -19,7 +19,8 @@ class Trainer():
         self.n_class = args.n_class
         self.accumlation_steps = args.accumulation_steps
         # define network
-        self.net = define_net(args=args, gpu_ids=args.gpu_ids)
+        self.vqvae,self.classifier = define_net(args=args)
+        self.net = define_strong_net(args=args)
 
         self.device = torch.device("cuda:%s" % args.gpu_ids[0] if torch.cuda.is_available() and len(args.gpu_ids)>0
                                    else "cpu")
@@ -161,3 +162,11 @@ class Trainer():
 
         current_score = self.running_metric.update_cm(pr=pred.cpu().numpy(), gt=target.cpu().numpy())
         return current_score
+    
+    def _forward_pass(self,batch):
+        if args.train == 'full':
+            vqvae_out = self.vqvae(batch['image'].to(self.device))
+            self.net_pred = adversarial_walk(vqvae_out)
+            self.net_pred = self.net(self.net_pred)
+        self.net_pred = self.net(batch['image'].to(self.device))
+        self.G_loss = self._pxl_loss(self.net_pred, batch['label'].to(self.device))
