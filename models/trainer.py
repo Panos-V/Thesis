@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import os
+import cv2 
 
 from misc.logger_tool import *
 from misc.metric_tool import *
@@ -30,18 +31,23 @@ class Trainer():
         # Learning rate and Beta1 for Adam optimizers
         self.lr = args.lr
 
-        # define optimizers
-        if args.optimizer == 'sgd':
-            self.optimizer_G = optim.SGD(self.net.parameters(), lr=self.lr,
-                                        momentum=0.9,
-                                        weight_decay=5e-4)
+        if args.train == 'full':
+            model_to_train = self.net
+        elif args.train == 'vqvae':
+            model_to_train = self.vqvae
+        elif args.train == 'classifier':
+            model_to_train = self.classifier
 
-        elif args.optimizer == 'adam':
-            self.optimizer_G = optim.AdamW(
-                self.net.parameters(),
-                lr=self.lr,           # e.g. 1e-3
-                betas=(0.9, 0.999)    
-            )
+        # define optimizers
+        if args.optimizer_net == 'sgd':
+            self.optimizer_G = optim.SGD(model_to_train.parameters(),
+                                          lr=self.lr, momentum=0.9,
+                                            weight_decay=5e-4)
+        elif args.optimizer_net == 'adam':
+            self.optimizer_G = optim.Adam(model_to_train.parameters(),
+                                           lr=self.lr)
+
+
 
         # define lr schedulers
         self.exp_lr_scheduler_G = get_scheduler(self.optimizer_G, args)
@@ -67,10 +73,10 @@ class Trainer():
         self.steps_per_epoch = len(dataloaders['train'])
         self.total_steps = (self.max_num_epochs - self.epoch_to_start)*self.steps_per_epoch
 
-        self.G_pred = None
+        self.pred = None
         self.pred_vis = None
         self.batch = None
-        self.G_loss = None
+        self.loss = None
         self.is_training = False
         self.batch_id = 0
         self.epoch_id = 0
@@ -96,7 +102,7 @@ class Trainer():
         if os.path.exists(self.vis_dir) is False:
             os.mkdir(self.vis_dir)
 
-    def update_lr_scheduler(self):
+    def _update_lr_scheduler(self):
         self.exp_lr_scheduler_G.step()
 
     def _load_checkpoint(self, ckpt_name='last_ckpt.pt'):
@@ -149,9 +155,13 @@ class Trainer():
             'epoch_id': self.epoch_id,
             'best_val_acc': self.best_val_acc,
             'best_epoch_id': self.best_epoch_id,
-            'model_G_state_dict': self.net.state_dict(),
-            'optimizer_G_state_dict': self.optimizer_G.state_dict(),
+            'model_strong_state_dict': self.net.state_dict(),
+            'net_optimizer_state_dict': self.optimizer_net.state_dict(),
             'exp_lr_scheduler_G_state_dict': self.exp_lr_scheduler_G.state_dict(),
+            'vqvae_state_dict': self.vqvae.state_dict() if self.vqvae is not None else None,
+            'vqvae_optimizer_state_dict': self.optimizer_vqvae.state_dict() if self.vqvae is not None else None,
+            'classifier_state_dict': self.classifier.state_dict() if self.classifier is not None else None,
+            'classifier_optimizer_state_dict': self.optimizer_classifier.state_dict() if self.classifier is not None else None,
         }, os.path.join(self.checkpoint_dir, ckpt_name))
 
     def _update_metric(self):
@@ -163,10 +173,137 @@ class Trainer():
         current_score = self.running_metric.update_cm(pr=pred.cpu().numpy(), gt=target.cpu().numpy())
         return current_score
     
+    def _collect_running_batch_states(self):
+        
+        running_acc = self._update_metric()
+
+        m = len(self.dataloaders['train'])
+        if self.is_training is False:
+            m = len(self.dataloaders['val'])
+
+        imps, est = self._timer_update()
+        if np.mod(self.batch_id, 100) == 1:
+            message = 'Is_training: %s. [%d,%d][%d,%d], imps: %.2f, est: %.2fh, G_loss: %.5f, running_mf1: %.5f\n' %\
+                      (self.is_training, self.epoch_id, self.max_num_epochs-1, self.batch_id, m,
+                     imps*self.batch_size, est,
+                     self.G_loss.item(), running_acc)
+            self.logger.write(message)
+
+    def _collect_epoch_states(self):
+        scores = self.running_metric.get_scores()
+        self.epoch_acc = scores['mf1']
+        self.logger.write('Is_training: %s. Epoch %d / %d, epoch_mF1= %.5f\n' %
+              (self.is_training, self.epoch_id, self.max_num_epochs-1, self.epoch_acc))
+        message = ''
+        for k, v in scores.items():
+            message += '%s: %.5f ' % (k, v)
+        self.logger.write(message+'\n')
+        self.logger.write('\n')
+
+    def adversarial_walk(self,vqvae_out,steps=4,a=0.1):
+        h_delta = vqvae_out.clone().detach().requires_grad_(True)
+        e = 1e-4
+        
+        for _ in range(steps):
+            prediction = self.classifier(h_delta)
+            prediction = torch.softmax(prediction,dim=1)
+            entropy = -torch.special.entr(prediction+e).sum(dim=1).mean()
+
+            grad = torch.autograd.grad(entropy, h_delta, create_graph=False)[0]
+            delta = (grad - grad.mean()) / (grad.std() + e)
+
+            h_delta = (h_delta + a*delta).detach().requires_grad_(True)
+
+            _,h_delta,perplexity,_ = self.vqvae.vq(h_delta)
+
+        return h_delta, perplexity
+
+    def _update_training_acc_curve(self):
+        self.TRAIN_ACC = np.append(self.TRAIN_ACC, self.epoch_acc)
+        np.save(os.path.join(self.checkpoint_dir, 'train_acc.npy'), self.TRAIN_ACC)
+
+    def _update_val_acc_curve(self):
+        self.VAL_ACC = np.append(self.VAL_ACC, self.epoch_acc)
+        np.save(os.path.join(self.checkpoint_dir, 'val_acc.npy'), self.VAL_ACC)
+
+    def _clear_cache(self):
+        self.running_metric.clear()
+
     def _forward_pass(self,batch):
-        if args.train == 'full':
+        if self.args.train == 'full':
             vqvae_out = self.vqvae(batch['image'].to(self.device))
-            self.net_pred = adversarial_walk(vqvae_out)
+            self.net_pred = self.adversarial_walk(vqvae_out)
             self.net_pred = self.net(self.net_pred)
-        self.net_pred = self.net(batch['image'].to(self.device))
-        self.G_loss = self._pxl_loss(self.net_pred, batch['label'].to(self.device))
+        elif self.args.train == 'vqvae':
+            vqvae_out = self.vqvae(batch['image'].to(self.device))
+        elif self.args.train == 'classifier':
+            vqvae_out = self.vqvae(batch['image'].to(self.device))
+            self.net_pred = self.classifier(vqvae_out)
+    
+    def _backward(self):
+        gt = self.batch['label'].to(self.device).long()
+        self.loss = self._pxl_loss(self.net_pred, gt)
+        self.loss.backward()
+    
+    def train_models(self):
+        self._load_checkpoint()
+        # loop over the dataset multiple times
+        for self.epoch_id in range(self.epoch_to_start, self.max_num_epochs):
+
+            ################## train #################
+            ##########################################
+            self._clear_cache()
+            self.is_training = True
+            self.net_G.train()  # Set model to training mode
+            # Iterate over data.
+            self.logger.write('lr: %0.7f\n' % self.optimizer_G.param_groups[0]['lr'])
+
+            for self.batch_id, batch in enumerate(self.dataloaders['train'], 0):
+                self._forward_pass(batch)
+                
+                # update G
+                self._backward()
+                if self.accumlation_steps > 0:
+                    if (self.batch_id + 1) % self.accumlation_steps == 0:
+                        self.optimizer_G.step()
+                        self.optimizer_G.zero_grad()
+                else:
+                    self.optimizer_G.step()
+                    self.optimizer_G.zero_grad()
+
+
+                self._collect_running_batch_states()
+                self._timer_update()
+
+                del batch
+            self._collect_epoch_states()
+            self._update_training_acc_curve()
+            self._update_lr_schedulers()
+            
+
+            torch.cuda.empty_cache()
+
+            ################## Eval ##################
+            ##########################################
+            self.logger.write('Begin evaluation...\n')
+            self._clear_cache()
+            self.is_training = False
+            self.net_G.eval()
+
+            # Iterate over data.
+            for self.batch_id, batch in enumerate(self.dataloaders['val'], 0):
+                with torch.no_grad():
+                    self._forward_pass(batch)
+                self._collect_running_batch_states()
+            self._collect_epoch_states()
+
+            ########### Update_Checkpoints ###########
+            ##########################################
+            self._update_val_acc_curve()
+            self._update_checkpoints()
+
+    def resize(arr,shape):
+        arr = arr.astype(np.uint8)
+        arr = 255 * (arr - arr.min()) / (arr.max() - arr.min() + 1e-8)
+        #print(f"array size {arr[:,:,0,:].shape}, target shape {shape}")
+        return cv2.resize(arr, (shape[1], shape[0]))
