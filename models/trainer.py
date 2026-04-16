@@ -53,6 +53,7 @@ class Trainer():
         self.exp_lr_scheduler_G = get_scheduler(self.optimizer_G, args)
 
         self.running_metric = ConfuseMatrixMeter(n_class=2)
+        self.running_fairness = FairnessMeter(n_class=2)
 
         # define logger file
         logger_path = os.path.join(args.checkpoint_dir, 'log.txt')
@@ -173,6 +174,12 @@ class Trainer():
         current_score = self.running_metric.update_cm(pr=pred.cpu().numpy(), gt=target.cpu().numpy())
         return current_score
     
+    def _update_fairness(self):
+
+        # seperate protected group and unprotected group and compute the matrics
+        
+        target = self.batch['fitzpatrick']
+
     def _collect_running_batch_states(self):
         
         running_acc = self._update_metric()
@@ -254,7 +261,7 @@ class Trainer():
             ##########################################
             self._clear_cache()
             self.is_training = True
-            self.net_G.train()  # Set model to training mode
+            self.net.train()  # Set model to training mode
             # Iterate over data.
             self.logger.write('lr: %0.7f\n' % self.optimizer_G.param_groups[0]['lr'])
 
@@ -278,7 +285,7 @@ class Trainer():
                 del batch
             self._collect_epoch_states()
             self._update_training_acc_curve()
-            self._update_lr_schedulers()
+            self._update_lr_scheduler()
             
 
             torch.cuda.empty_cache()

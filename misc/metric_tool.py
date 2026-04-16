@@ -60,8 +60,23 @@ class ConfuseMatrixMeter(AverageMeter):
     def get_scores(self):
         scores_dict = cm2score(self.sum)
         return scores_dict
+    
+class FairnessMeter(AverageMeter):
+    """Computes and stores the average and current value"""
+    def __init__(self, n_class):
+        super(FairnessMeter, self).__init__()
+        self.n_class = n_class
 
+    def update_cm(self, pr, gt, weight=1):
+        """获得当前混淆矩阵，并计算当前F1得分，并更新混淆矩阵"""
+        val = get_fair_matrices(num_classes=self.n_class, label_gts=gt, label_preds=pr)
+        self.update(val, weight)
+        current_score = cm2fairness(val)
+        return current_score
 
+    def get_scores(self):
+        scores_dict = cm2score(self.sum)
+        return scores_dict
 
 def harmonic_mean(xs):
     harmonic_mean = len(xs) / sum((x+1e-6)**-1 for x in xs)
@@ -91,6 +106,30 @@ def cm2F1(confusion_matrix):
     mean_F1 = np.nanmean(F1)
     return mean_F1
 
+def cm2fairness(confusion_matrix_prot,confusion_matrix_unprot):
+    tp_prot = np.diag(confusion_matrix_prot)
+    tp_unprot = np.diag(confusion_matrix_unprot)
+
+    success_prot = tp_prot.sum(axis=1)
+    success_unprot = tp_unprot.sum(axis=1)
+
+    full_prot = confusion_matrix_prot.sum()
+    full_unprot = confusion_matrix_unprot.sum()
+
+    eo = (tp_prot / full_prot) / (tp_unprot / full_unprot + np.finfo(np.float32).eps)
+
+    di = (success_prot / full_prot) / (success_unprot / full_unprot + np.finfo(np.float32).eps)
+
+    acc_prot = tp_prot.sum() / (confusion_matrix_prot.sum() + np.finfo(np.float32).eps)
+    acc_unprot = tp_unprot.sum() / (confusion_matrix_unprot.sum() + np.finfo(np.float32).eps)
+    ap = acc_prot / (acc_unprot + np.finfo(np.float32).eps)
+
+    return {
+        'EO': eo,
+        'DI': di,
+        'AP': ap
+    }
+    
 
 def cm2score(confusion_matrix):
     hist = confusion_matrix
@@ -156,6 +195,27 @@ def get_confuse_matrix(num_classes, label_gts, label_preds):
         confusion_matrix += __fast_hist(lt.flatten(), lp.flatten())
     return confusion_matrix
 
+def get_fair_matrices(num_classes, label_gts, label_preds):
+    """计算一组预测的混淆矩阵"""
+    def __fast_hist(label_gt, label_pred):
+        """
+        Collect values for Confusion Matrix
+        For reference, please see: https://en.wikipedia.org/wiki/Confusion_matrix
+        :param label_gt: <np.array> ground-truth
+        :param label_pred: <np.array> prediction
+        :return: <np.ndarray> values for confusion matrix
+        """
+        mask = (label_gt >= 0) & (label_gt < num_classes)
+        hist = np.bincount(num_classes * label_gt[mask].astype(int) + label_pred[mask],
+                           minlength=num_classes**2).reshape(num_classes, num_classes)
+        return hist
+    
+    confusion_matrix_prot = np.zeros((num_classes, num_classes))
+    confusion_matrix_unprot = np.zeros((num_classes, num_classes))
+
+    for lt, lp in zip(label_gts, label_preds):
+        confusion_matrix += __fast_hist(lt.flatten(), lp.flatten())
+    return confusion_matrix
 
 def get_mIoU(num_classes, label_gts, label_preds):
     confusion_matrix = get_confuse_matrix(num_classes, label_gts, label_preds)
