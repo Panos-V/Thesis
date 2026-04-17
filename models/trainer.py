@@ -175,14 +175,43 @@ class Trainer():
         return current_score
     
     def _update_fairness(self):
-
-        # seperate protected group and unprotected group and compute the matrics
+        # 1. Extract data and move to device
+        target = self.batch['label'].to(self.device).detach()
+        fitzpatrick = self.batch['fitzpatrick'].to(self.device).detach()
         
-        target = self.batch['fitzpatrick']
+        # 2. Process predictions
+        pred = self.net_pred.detach()
+        pred = torch.argmax(pred, dim=1)
+
+        # 3. Create boolean masks
+        # Protected: Fitzpatrick 4, 5, 6 | Non-protected: 1, 2, 3
+        protected_mask = fitzpatrick > 3
+        non_protected_mask = ~protected_mask
+
+        # 4. Split the data
+
+        target_prot = target[protected_mask].cpu().numpy()
+        pred_prot = pred[protected_mask].cpu().numpy()
+
+        # Non-protected group
+        target_non_prot = target[non_protected_mask].cpu().numpy()
+        pred_non_prot = pred[non_protected_mask].cpu().numpy()
+
+        # 5. Update fairness tracker
+
+        current_score = self.running_fairness.update_cm(
+            pr_prot=pred_prot, 
+            gt_prot=target_prot,
+            pr_non_prot=pred_non_prot,
+            gt_non_prot=target_non_prot
+        )
+        
+        return current_score
 
     def _collect_running_batch_states(self):
         
         running_acc = self._update_metric()
+        running_fairness = self._update_fairness()
 
         m = len(self.dataloaders['train'])
         if self.is_training is False:
@@ -190,10 +219,11 @@ class Trainer():
 
         imps, est = self._timer_update()
         if np.mod(self.batch_id, 100) == 1:
-            message = 'Is_training: %s. [%d,%d][%d,%d], imps: %.2f, est: %.2fh, G_loss: %.5f, running_mf1: %.5f\n' %\
+            message = 'Is_training: %s. [%d,%d][%d,%d], imps: %.2f, est: %.2fh, G_loss: %.5f, running_mf1: %.5f\n, running_EO: %.5f,' \
+            ' running_DI: %.5f, running_AP: %.5f' %\
                       (self.is_training, self.epoch_id, self.max_num_epochs-1, self.batch_id, m,
                      imps*self.batch_size, est,
-                     self.G_loss.item(), running_acc)
+                     self.loss.item(), running_acc, running_fairness['EO'], running_fairness['DI'], running_fairness['AP'])
             self.logger.write(message)
 
     def _collect_epoch_states(self):
@@ -245,6 +275,7 @@ class Trainer():
             vqvae_out = self.vqvae(batch['image'].to(self.device))
         elif self.args.train == 'classifier':
             vqvae_out = self.vqvae(batch['image'].to(self.device))
+            vqvae_out = self.vqvae.pre_vq_conv(vqvae_out)
             self.net_pred = self.classifier(vqvae_out)
     
     def _backward(self):

@@ -67,11 +67,11 @@ class FairnessMeter(AverageMeter):
         super(FairnessMeter, self).__init__()
         self.n_class = n_class
 
-    def update_cm(self, pr, gt, weight=1):
-        """获得当前混淆矩阵，并计算当前F1得分，并更新混淆矩阵"""
-        val = get_fair_matrices(num_classes=self.n_class, label_gts=gt, label_preds=pr)
-        self.update(val, weight)
-        current_score = cm2fairness(val)
+    def update_cm(self, pr_prot, gt_prot, pr_unprot, gt_unprot, weight=1):
+        val_unprot = get_confuse_matrix(num_classes=self.n_class, label_gts=gt_unprot, label_preds=pr_unprot)
+        val_prot = get_confuse_matrix(num_classes=self.n_class, label_gts=gt_prot, label_preds=pr_prot)
+        self.update(val_prot, weight)
+        current_score = cm2fairness(val_prot, val_unprot)
         return current_score
 
     def get_scores(self):
@@ -191,28 +191,6 @@ def get_confuse_matrix(num_classes, label_gts, label_preds):
                            minlength=num_classes**2).reshape(num_classes, num_classes)
         return hist
     confusion_matrix = np.zeros((num_classes, num_classes))
-    for lt, lp in zip(label_gts, label_preds):
-        confusion_matrix += __fast_hist(lt.flatten(), lp.flatten())
-    return confusion_matrix
-
-def get_fair_matrices(num_classes, label_gts, label_preds):
-    """计算一组预测的混淆矩阵"""
-    def __fast_hist(label_gt, label_pred):
-        """
-        Collect values for Confusion Matrix
-        For reference, please see: https://en.wikipedia.org/wiki/Confusion_matrix
-        :param label_gt: <np.array> ground-truth
-        :param label_pred: <np.array> prediction
-        :return: <np.ndarray> values for confusion matrix
-        """
-        mask = (label_gt >= 0) & (label_gt < num_classes)
-        hist = np.bincount(num_classes * label_gt[mask].astype(int) + label_pred[mask],
-                           minlength=num_classes**2).reshape(num_classes, num_classes)
-        return hist
-    
-    confusion_matrix_prot = np.zeros((num_classes, num_classes))
-    confusion_matrix_unprot = np.zeros((num_classes, num_classes))
-
     for lt, lp in zip(label_gts, label_preds):
         confusion_matrix += __fast_hist(lt.flatten(), lp.flatten())
     return confusion_matrix

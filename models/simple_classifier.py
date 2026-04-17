@@ -5,9 +5,9 @@ from tqdm import tqdm
 import torch.backends.cudnn as cudnn
 
 
-class classifier(nn.Module):
+class model(nn.Module):
     def __init__(self,in_channels,num_classes,device):
-        super(classifier,self).__init__()
+        super(model,self).__init__()
         self.device = device
         self.fc1 = nn.Linear(in_channels, 1024)
         self.bn1 = nn.BatchNorm1d(1024)
@@ -28,6 +28,9 @@ class classifier(nn.Module):
         x = self.fc4(x)
 
         return x
+
+
+#--------------------------------------------------------------------#
 
 def save_checkpoint(state,filename='checkpointf.tar'):
     print("=> Saving checkpoint")
