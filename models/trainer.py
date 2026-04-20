@@ -18,6 +18,7 @@ class Trainer():
         self.dataset = args.dataset
         self.data_name = args.data_name
         self.n_class = args.n_class
+        self.train = args.train
         self.accumlation_steps = args.accumulation_steps
         # define network
         self.vqvae,self.classifier = define_net(args=args)
@@ -31,7 +32,7 @@ class Trainer():
         # Learning rate and Beta1 for Adam optimizers
         self.lr = args.lr
 
-        if args.train == 'full':
+        if args.train == 'strong_classifier':
             model_to_train = self.net
         elif args.train == 'vqvae':
             model_to_train = self.vqvae
@@ -39,11 +40,11 @@ class Trainer():
             model_to_train = self.classifier
 
         # define optimizers
-        if args.optimizer_net == 'sgd':
+        if args.optimizer == 'sgd':
             self.optimizer_G = optim.SGD(model_to_train.parameters(),
                                           lr=self.lr, momentum=0.9,
                                             weight_decay=5e-4)
-        elif args.optimizer_net == 'adam':
+        elif args.optimizer == 'adam':
             self.optimizer_G = optim.Adam(model_to_train.parameters(),
                                            lr=self.lr)
 
@@ -114,8 +115,12 @@ class Trainer():
             checkpoint = torch.load(os.path.join(self.checkpoint_dir, ckpt_name),
                                     map_location=self.device)
             # update net states
-            self.net.load_state_dict(checkpoint['model_G_state_dict'])
-
+            if self.train == 'vqvae':
+                self.vqvae.load_state_dict(checkpoint['vqvae_state_dict'])
+            elif self.train == 'classifier':
+                self.classifier.load_state_dict(checkpoint['classifier_state_dict'])
+            elif self.train == 'full':
+                self.net.load_state_dict(checkpoint['model_strong_state_dict'])
             self.optimizer_G.load_state_dict(checkpoint['optimizer_G_state_dict'])
             self.exp_lr_scheduler_G.load_state_dict(
                 checkpoint['exp_lr_scheduler_G_state_dict'])
@@ -157,12 +162,10 @@ class Trainer():
             'best_val_acc': self.best_val_acc,
             'best_epoch_id': self.best_epoch_id,
             'model_strong_state_dict': self.net.state_dict(),
-            'net_optimizer_state_dict': self.optimizer_net.state_dict(),
+            'net_optimizer_state_dict': self.optimizer_G.state_dict(),
             'exp_lr_scheduler_G_state_dict': self.exp_lr_scheduler_G.state_dict(),
             'vqvae_state_dict': self.vqvae.state_dict() if self.vqvae is not None else None,
-            'vqvae_optimizer_state_dict': self.optimizer_vqvae.state_dict() if self.vqvae is not None else None,
             'classifier_state_dict': self.classifier.state_dict() if self.classifier is not None else None,
-            'classifier_optimizer_state_dict': self.optimizer_classifier.state_dict() if self.classifier is not None else None,
         }, os.path.join(self.checkpoint_dir, ckpt_name))
 
     def _update_metric(self):
@@ -267,13 +270,13 @@ class Trainer():
         self.running_metric.clear()
 
     def _forward_pass(self,batch):
-        if self.args.train == 'full':
+        if self.train == 'full':
             vqvae_out = self.vqvae(batch['image'].to(self.device))
             self.net_pred = self.adversarial_walk(vqvae_out)
             self.net_pred = self.net(self.net_pred)
-        elif self.args.train == 'vqvae':
+        elif self.train == 'vqvae':
             vqvae_out = self.vqvae(batch['image'].to(self.device))
-        elif self.args.train == 'classifier':
+        elif self.train == 'classifier':
             vqvae_out = self.vqvae(batch['image'].to(self.device))
             vqvae_out = self.vqvae.pre_vq_conv(vqvae_out)
             self.net_pred = self.classifier(vqvae_out)
@@ -285,7 +288,7 @@ class Trainer():
     
     def train_models(self):
         self._load_checkpoint()
-        # loop over the dataset multiple times
+
         for self.epoch_id in range(self.epoch_to_start, self.max_num_epochs):
 
             ################## train #################

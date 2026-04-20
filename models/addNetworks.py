@@ -8,22 +8,28 @@ from models import vq_vae, simple_classifier
 from torch.optim import lr_scheduler
 
 def define_net(args):
-    if args.train == 'vqvae':
-        nets = vq_vae.model(), None
-    elif args.train == 'classifier':
-        nets = None, simple_classifier.model(num_classes=args.n_class)
-    elif args.train == 'full':
-        nets = vq_vae.model(), simple_classifier.model(num_classes=args.n_class)
+
+    img_size = args.img_size
+    in_channels = args.vqvae_embedding_dim * (img_size // 4) * (img_size // 4) # Calculate in_channels based on the output of the vqvae encoder
+
+    nets = vq_vae.model(args.vqvae_hiddens,
+                            args.vqvae_residual_hiddens,
+                            args.vqvae_residual_layers,
+                            args.vqvae_num_embeddings,
+                            args.vqvae_embedding_dim,
+                            args.vqvae_commitment_cost), simple_classifier.model(in_channels=in_channels,
+                                                                                  num_classes=args.n_class)
+
 
     return nets
 
 def define_strong_net(args):
     if args.strong_classifier == 'base_resnet18':
-        net = base_resnet18(num_classes=args.n_class)
+        net = base_resnet18(n_classes=args.n_class)
     elif args.strong_classifier == 'base_efficientnet_b0':
-        net = base_efficientnet_b0(num_classes=args.n_class)
+        net = base_efficientnet_b0(n_classes=args.n_class)
     elif args.strong_classifier == 'base_densenet121':
-        net = base_densenet121(num_classes=args.n_class)
+        net = base_densenet121(n_classes=args.n_class)
     else:
         raise NotImplementedError(f"Unknown strong classifier: {args.strong_classifier}")
     
@@ -74,7 +80,7 @@ class Base_Grad_model(nn.Module):
         return self.features_conv(x)
 
 class base_resnet18(Base_Grad_model):
-    def __init__(self):
+    def __init__(self,n_classes):
         super(base_resnet18, self).__init__()
         res = resnet18(weights=resnet18(weights=torchvision.models.ResNet18_Weights.DEFAULT))
         
@@ -91,7 +97,8 @@ class base_resnet18(Base_Grad_model):
 
         self.avgpool = res.avgpool
 
-        self.classifier = res.fc
+        res.fc.out_features = n_classes
+        self.classifier = res.fc.out_features
 
         self.gradients = None
 
@@ -107,11 +114,13 @@ class base_resnet18(Base_Grad_model):
 
 
 class base_efficientnet_b0(Base_Grad_model):
-    def __init__(self):
+    def __init__(self,n_classes):
         super(base_efficientnet_b0, self).__init__()
         eff = efficientnet_b0(weights=efficientnet_b0(weights=torchvision.models.EfficientNet_B0_Weights.DEFAULT))
+
         self.features_conv = eff.features
         self.avg_pool = eff.avgpool
+        eff.classifier[1].out_features = n_classes
         self.classifier = eff.classifier
         self.gradients = None
 
@@ -127,11 +136,12 @@ class base_efficientnet_b0(Base_Grad_model):
         return x
 
 class base_densenet121(Base_Grad_model):
-    def __init__(self):
+    def __init__(self,n_classes):
         super(base_densenet121, self).__init__()
         dn = densenet121(pretrained=True)
         self.features_conv = dn.features
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
+        dn.classifier.out_features = n_classes
         self.classifier = dn.classifier
         self.gradients = None
 

@@ -48,7 +48,8 @@ class Fitzpatrick(Dataset):
         self.root_dir = root_dir
         self.img_size = img_size
         self.data_name = data_name
-        self.df = pd.read_csv(os.path.join(self.root_dir, self.data_name + '.csv'))
+
+        self.df = pd.read_csv(os.path.join(self.root_dir, self.data_name + '_' + split + '.csv'))
 
         if is_train:
             self.augm = transforms.Compose([
@@ -68,23 +69,14 @@ class Fitzpatrick(Dataset):
         return len(self.df)
 
     def __getitem__(self, index):
-        name = self.df.iloc[index]['new_image_name']
+        name = self.df.iloc[index]['new_img_name']
         label = self.df.iloc[index]['three_partition_label']
         fitzpatrick = self.df.iloc[index]['fitzpatrick']
         img_path = os.path.join(self.root_dir, 'full_dataset', name)
 
-        image = np.asarray(Image.open(img_path).convert("RGB"))
+        image = Image.open(img_path).convert("RGB")
 
         image = self.augm(image)
 
         return {'name':name, 'image': image, 'label': label, 'fitzpatrick': fitzpatrick}
-
-    
-
-
-
-
-
-
-
 

@@ -6,9 +6,9 @@ import torch.backends.cudnn as cudnn
 
 
 class model(nn.Module):
-    def __init__(self,in_channels,num_classes,device):
+    def __init__(self,in_channels,num_classes):
         super(model,self).__init__()
-        self.device = device
+        
         self.fc1 = nn.Linear(in_channels, 1024)
         self.bn1 = nn.BatchNorm1d(1024)
 

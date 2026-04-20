@@ -161,9 +161,8 @@ class VectorQuantizer(nn.Module):
     
     
 class model(nn.Module):
-    def __init__(self,num_hiddens,num_residual_layers,num_residual_hiddens,num_embeddings,embedding_dim,commitment_cost,device):
+    def __init__(self,num_hiddens,num_residual_layers,num_residual_hiddens,num_embeddings,embedding_dim,commitment_cost):
         super(model,self).__init__()
-        self.device = device
         self.encoder = encoder(3, num_hiddens,num_residual_layers,num_residual_hiddens)
         
         self.pre_vq_conv = nn.Conv2d(in_channels=num_hiddens,
