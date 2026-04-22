@@ -279,7 +279,7 @@ class Trainer():
                 self.logger.write(message)
         
         if np.mod(self.batch_id, 500) == 1:
-            vis_input = utils.make_numpy_grid(self.batch['img'])
+            vis_input = utils.make_numpy_grid(self.batch['image'])
 
             vis_pred = utils.make_numpy_grid(self._visualize_pred())
 
