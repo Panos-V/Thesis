@@ -1,10 +1,42 @@
-================ (Mon Apr 20 12:49:47 2026) ================
-gpu_ids: [] project_name: test checkpoint_root: checkpoint_test num_workers: 0 dataset: CDDataset data_name: test batch_size: 32 split: train split_val: val img_size: 256 n_class: 2 train: vqvae strong_classifier: base_resnet18 loss: ce vqvae_hiddens: 512 vqvae_residual_hiddens: 512 vqvae_residual_layers: 2 vqvae_num_embeddings: 1024 vqvae_embedding_dim: 64 vqvae_commitment_cost: 0.25 optimizer: sgd lr: 0.0001 max_epochs: 100 lr_policy: linear lr_decay_iters: 100 accumulation_steps: 0 checkpoint_dir: checkpoint_test/test vis_dir: vis/test lr: 0.0001000
-================ (Mon Apr 20 12:52:55 2026) ================
-gpu_ids: [] project_name: test checkpoint_root: checkpoint_test num_workers: 0 dataset: CDDataset data_name: test batch_size: 32 split: train split_val: val img_size: 256 n_class: 2 train: vqvae strong_classifier: base_resnet18 loss: ce vqvae_hiddens: 512 vqvae_residual_hiddens: 512 vqvae_residual_layers: 2 vqvae_num_embeddings: 1024 vqvae_embedding_dim: 64 vqvae_commitment_cost: 0.25 optimizer: sgd lr: 0.0001 max_epochs: 100 lr_policy: linear lr_decay_iters: 100 accumulation_steps: 0 checkpoint_dir: checkpoint_test/test vis_dir: vis/test lr: 0.0001000
-================ (Mon Apr 20 12:54:49 2026) ================
-gpu_ids: [] project_name: test checkpoint_root: checkpoint_test num_workers: 0 dataset: CDDataset data_name: test batch_size: 32 split: train split_val: val img_size: 256 n_class: 2 train: vqvae strong_classifier: base_resnet18 loss: ce vqvae_hiddens: 512 vqvae_residual_hiddens: 512 vqvae_residual_layers: 2 vqvae_num_embeddings: 1024 vqvae_embedding_dim: 64 vqvae_commitment_cost: 0.25 optimizer: sgd lr: 0.0001 max_epochs: 100 lr_policy: linear lr_decay_iters: 100 accumulation_steps: 0 checkpoint_dir: checkpoint_test/test vis_dir: vis/test lr: 0.0001000
-================ (Mon Apr 20 12:55:28 2026) ================
-gpu_ids: [] project_name: test checkpoint_root: checkpoint_test num_workers: 0 dataset: CDDataset data_name: test batch_size: 32 split: train split_val: val img_size: 256 n_class: 2 train: vqvae strong_classifier: base_resnet18 loss: ce vqvae_hiddens: 512 vqvae_residual_hiddens: 512 vqvae_residual_layers: 2 vqvae_num_embeddings: 1024 vqvae_embedding_dim: 64 vqvae_commitment_cost: 0.25 optimizer: sgd lr: 0.0001 max_epochs: 100 lr_policy: linear lr_decay_iters: 100 accumulation_steps: 0 checkpoint_dir: checkpoint_test/test vis_dir: vis/test lr: 0.0001000
-================ (Mon Apr 20 12:59:59 2026) ================
-gpu_ids: [] project_name: test checkpoint_root: checkpoint_test num_workers: 0 dataset: CDDataset data_name: test batch_size: 32 split: train split_val: val img_size: 256 n_class: 2 train: vqvae strong_classifier: base_resnet18 loss: ce vqvae_hiddens: 512 vqvae_residual_hiddens: 512 vqvae_residual_layers: 2 vqvae_num_embeddings: 1024 vqvae_embedding_dim: 64 vqvae_commitment_cost: 0.25 optimizer: sgd lr: 0.0001 max_epochs: 100 lr_policy: linear lr_decay_iters: 100 accumulation_steps: 0 checkpoint_dir: checkpoint_test/test vis_dir: vis/test lr: 0.0001000
+================ (Tue Apr 21 12:43:39 2026) ================
+gpu_ids: [] project_name: test checkpoint_root: checkpoint_test num_workers: 0 dataset: CDDataset data_name: test batch_size: 16 split: train split_val: val img_size: 32 n_class: 2 train: vqvae strong_classifier: base_resnet18 loss: mse vqvae_hiddens: 128 vqvae_residual_hiddens: 128 vqvae_residual_layers: 2 vqvae_num_embeddings: 1024 vqvae_embedding_dim: 64 vqvae_commitment_cost: 0.25 optimizer: sgd lr: 0.0001 max_epochs: 100 lr_policy: linear lr_decay_iters: 100 accumulation_steps: 0 checkpoint_dir: checkpoint_test/test vis_dir: vis/test lr: 0.0001000
+Is_training: True. Epoch 0 / 99, epoch_VQ_loss= 0.07840
+Begin evaluation...
+Is_training: False. Epoch 0 / 99, epoch_VQ_loss= 0.07537
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 0)
+
+lr: 0.0000990
+Is_training: True. Epoch 1 / 99, epoch_VQ_loss= 0.07820
+Begin evaluation...
+Is_training: False. Epoch 1 / 99, epoch_VQ_loss= 0.07433
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 0)
+
+lr: 0.0000980
+Is_training: True. Epoch 2 / 99, epoch_VQ_loss= 0.07669
+Begin evaluation...
+Is_training: False. Epoch 2 / 99, epoch_VQ_loss= 0.07305
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 0)
+
+lr: 0.0000970
+Is_training: True. Epoch 3 / 99, epoch_VQ_loss= 0.07749
+Begin evaluation...
+Is_training: False. Epoch 3 / 99, epoch_VQ_loss= 0.07548
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 0)
+
+lr: 0.0000960
+Is_training: True. Epoch 4 / 99, epoch_VQ_loss= 0.07303
+Begin evaluation...
+Is_training: False. Epoch 4 / 99, epoch_VQ_loss= 0.07335
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 0)
+
+lr: 0.0000950
+Is_training: True. Epoch 5 / 99, epoch_VQ_loss= 0.07308
+Begin evaluation...
+Is_training: False. Epoch 5 / 99, epoch_VQ_loss= 0.06910
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 0)
+
+lr: 0.0000941
+Is_training: True. Epoch 6 / 99, epoch_VQ_loss= 0.06911
+Begin evaluation...
+Is_training: False. Epoch 6 / 99, epoch_VQ_loss= 0.06860
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 0)

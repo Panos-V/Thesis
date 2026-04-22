@@ -3,8 +3,8 @@
 gpus=-1
 checkpoint_root=checkpoint_test
 
-img_size=256
-batch_size=32
+img_size=32
+batch_size=16
 lr=1e-4
 
 project_name=test

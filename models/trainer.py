@@ -19,6 +19,7 @@ class Trainer():
         self.data_name = args.data_name
         self.n_class = args.n_class
         self.train = args.train
+        self.argloss = args.loss
         self.accumlation_steps = args.accumulation_steps
         # define network
         self.vqvae,self.classifier = define_net(args=args)
@@ -33,19 +34,19 @@ class Trainer():
         self.lr = args.lr
 
         if args.train == 'strong_classifier':
-            model_to_train = self.net
+            pass
         elif args.train == 'vqvae':
-            model_to_train = self.vqvae
+            self.net = self.vqvae
         elif args.train == 'classifier':
-            model_to_train = self.classifier
+            self.net = self.classifier
 
         # define optimizers
         if args.optimizer == 'sgd':
-            self.optimizer_G = optim.SGD(model_to_train.parameters(),
+            self.optimizer_G = optim.SGD(self.net.parameters(),
                                           lr=self.lr, momentum=0.9,
                                             weight_decay=5e-4)
         elif args.optimizer == 'adam':
-            self.optimizer_G = optim.Adam(model_to_train.parameters(),
+            self.optimizer_G = optim.Adam(self.net.parameters(),
                                            lr=self.lr)
 
 
@@ -86,10 +87,12 @@ class Trainer():
         self.vis_dir = args.vis_dir
 
         # define the loss functions
-        if args.loss == 'ce':
+        if self.argloss == 'ce':
             self._pxl_loss = nn.CrossEntropyLoss()
+        elif self.argloss == 'mse':
+            self._pxl_loss = nn.MSELoss()
         else:
-            raise NotImplemented(args.loss)
+            raise NotImplemented(self.argloss)
 
         self.VAL_ACC = np.array([], np.float32)
         if os.path.exists(os.path.join(self.checkpoint_dir, 'val_acc.npy')):
@@ -112,8 +115,14 @@ class Trainer():
         if os.path.exists(os.path.join(self.checkpoint_dir, ckpt_name)):
             self.logger.write('loading last checkpoint...\n')
             # load the entire checkpoint
-            checkpoint = torch.load(os.path.join(self.checkpoint_dir, ckpt_name),
-                                    map_location=self.device)
+            try:
+                checkpoint = torch.load(os.path.join(self.checkpoint_dir, ckpt_name),
+                                        map_location=self.device)
+            except Exception as e:
+                self.logger.write('Error occurred while loading checkpoint: %s\n' % str(e))
+                return
+
+
             # update net states
             if self.train == 'vqvae':
                 self.vqvae.load_state_dict(checkpoint['vqvae_state_dict'])
@@ -121,7 +130,7 @@ class Trainer():
                 self.classifier.load_state_dict(checkpoint['classifier_state_dict'])
             elif self.train == 'full':
                 self.net.load_state_dict(checkpoint['model_strong_state_dict'])
-            self.optimizer_G.load_state_dict(checkpoint['optimizer_G_state_dict'])
+            self.optimizer_G.load_state_dict(checkpoint['net_optimizer_state_dict'])
             self.exp_lr_scheduler_G.load_state_dict(
                 checkpoint['exp_lr_scheduler_G_state_dict'])
 
@@ -140,6 +149,22 @@ class Trainer():
 
         else:
             print('training from scratch...')
+
+    def _update_checkpoints(self):
+
+        # save current model
+        self._save_checkpoint(ckpt_name='last_ckpt.pt')
+        self.logger.write('Lastest model updated. Epoch_acc=%.4f, Historical_best_acc=%.4f (at epoch %d)\n'
+              % (self.epoch_acc, self.best_val_acc, self.best_epoch_id))
+        self.logger.write('\n')
+
+        # update the best model (based on eval acc)
+        if self.epoch_acc > self.best_val_acc:
+            self.best_val_acc = self.epoch_acc
+            self.best_epoch_id = self.epoch_id
+            self._save_checkpoint(ckpt_name='best_ckpt.pt')
+            self.logger.write('*' * 10 + 'Best model updated!\n')
+            self.logger.write('\n')
 
     def _timer_update(self):
         self.global_step = (self.epoch_id-self.epoch_to_start) * self.steps_per_epoch + self.batch_id
@@ -213,32 +238,41 @@ class Trainer():
 
     def _collect_running_batch_states(self):
         
-        running_acc = self._update_metric()
-        running_fairness = self._update_fairness()
+        if self.train == 'strong_classifier':
+            running_acc = self._update_metric()
+            running_fairness = self._update_fairness()
 
-        m = len(self.dataloaders['train'])
-        if self.is_training is False:
-            m = len(self.dataloaders['val'])
+            m = len(self.dataloaders['train'])
+            if self.is_training is False:
+                m = len(self.dataloaders['val'])
 
-        imps, est = self._timer_update()
-        if np.mod(self.batch_id, 100) == 1:
-            message = 'Is_training: %s. [%d,%d][%d,%d], imps: %.2f, est: %.2fh, G_loss: %.5f, running_mf1: %.5f\n, running_EO: %.5f,' \
-            ' running_DI: %.5f, running_AP: %.5f' %\
-                      (self.is_training, self.epoch_id, self.max_num_epochs-1, self.batch_id, m,
-                     imps*self.batch_size, est,
-                     self.loss.item(), running_acc, running_fairness['EO'], running_fairness['DI'], running_fairness['AP'])
-            self.logger.write(message)
+            imps, est = self._timer_update()
+            if np.mod(self.batch_id, 100) == 1:
+                message = 'Is_training: %s. [%d,%d][%d,%d], imps: %.2f, est: %.2fh, G_loss: %.5f, running_mf1: %.5f\n, running_EO: %.5f,' \
+                ' running_DI: %.5f, running_AP: %.5f' %\
+                        (self.is_training, self.epoch_id, self.max_num_epochs-1, self.batch_id, m,
+                        imps*self.batch_size, est,
+                        self.loss.item(), running_acc, running_fairness['EO'], running_fairness['DI'], running_fairness['AP'])
+                self.logger.write(message)
+        elif self.train == 'vqvae':
+            imps, est = self._timer_update()
+            if np.mod(self.batch_id, 100) == 1:
+                message = 'Is_training: %s. [%d,%d][%d,%d], imps: %.2f, est: %.5fh, VQ_loss: %.5f\n' %\
+                        (self.is_training, self.epoch_id, self.max_num_epochs-1, self.batch_id, len(self.dataloaders['train']),
+                        imps*self.batch_size, est,
+                        self.vq_loss.item())
+                self.logger.write(message)
 
     def _collect_epoch_states(self):
-        scores = self.running_metric.get_scores()
-        self.epoch_acc = scores['mf1']
-        self.logger.write('Is_training: %s. Epoch %d / %d, epoch_mF1= %.5f\n' %
-              (self.is_training, self.epoch_id, self.max_num_epochs-1, self.epoch_acc))
-        message = ''
-        for k, v in scores.items():
-            message += '%s: %.5f ' % (k, v)
-        self.logger.write(message+'\n')
-        self.logger.write('\n')
+        if self.train == 'strong_classifier':
+            scores = self.running_metric.get_scores()
+            self.epoch_acc = scores['mf1']
+            self.logger.write('Is_training: %s. Epoch %d / %d, epoch_mF1= %.5f\n' %
+                (self.is_training, self.epoch_id, self.max_num_epochs-1, self.epoch_acc))
+            message = ''
+        elif self.train == 'vqvae':
+            self.logger.write('Is_training: %s. Epoch %d / %d, epoch_VQ_loss= %.5f\n' %
+                (self.is_training, self.epoch_id, self.max_num_epochs-1, self.vq_loss.item()))
 
     def adversarial_walk(self,vqvae_out,steps=4,a=0.1):
         h_delta = vqvae_out.clone().detach().requires_grad_(True)
@@ -270,20 +304,30 @@ class Trainer():
         self.running_metric.clear()
 
     def _forward_pass(self,batch):
-        if self.train == 'full':
+        self.batch = batch
+
+        if self.train == 'strong_classifier':
             vqvae_out = self.vqvae(batch['image'].to(self.device))
             self.net_pred = self.adversarial_walk(vqvae_out)
             self.net_pred = self.net(self.net_pred)
         elif self.train == 'vqvae':
-            vqvae_out = self.vqvae(batch['image'].to(self.device))
+            self.vq_loss, self.net_pred, _ = self.vqvae(batch['image'].to(self.device))
         elif self.train == 'classifier':
             vqvae_out = self.vqvae(batch['image'].to(self.device))
             vqvae_out = self.vqvae.pre_vq_conv(vqvae_out)
             self.net_pred = self.classifier(vqvae_out)
-    
+
+
     def _backward(self):
-        gt = self.batch['label'].to(self.device).long()
-        self.loss = self._pxl_loss(self.net_pred, gt)
+
+        if self.argloss == 'mse':
+            gt = self.batch['image'].to(self.device).float()
+            self.loss = self._pxl_loss(self.net_pred.float(), gt) + self.vq_loss
+            print(f"recon_loss={self.loss:.4f}, vq_loss={self.vq_loss:.4f}")
+        elif self.argloss == 'ce':
+            gt = self.batch['label'].to(self.device).long()
+            self.loss = self._pxl_loss(self.net_pred.float(), gt)
+        
         self.loss.backward()
     
     def train_models(self):
@@ -300,8 +344,8 @@ class Trainer():
             self.logger.write('lr: %0.7f\n' % self.optimizer_G.param_groups[0]['lr'])
 
             for self.batch_id, batch in enumerate(self.dataloaders['train'], 0):
-                self._forward_pass(batch)
-                
+
+                self._forward_pass(batch)               
                 # update G
                 self._backward()
                 if self.accumlation_steps > 0:
@@ -329,7 +373,7 @@ class Trainer():
             self.logger.write('Begin evaluation...\n')
             self._clear_cache()
             self.is_training = False
-            self.net_G.eval()
+            self.net.eval()
 
             # Iterate over data.
             for self.batch_id, batch in enumerate(self.dataloaders['val'], 0):

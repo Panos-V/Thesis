@@ -69,8 +69,11 @@ class Fitzpatrick(Dataset):
         return len(self.df)
 
     def __getitem__(self, index):
+        label_map = {'benign': 0,'non-neoplastic':0, 'malignant':1}
+
         name = self.df.iloc[index]['new_img_name']
         label = self.df.iloc[index]['three_partition_label']
+        label = torch.tensor(label_map[label],dtype=torch.long)
         fitzpatrick = self.df.iloc[index]['fitzpatrick']
         img_path = os.path.join(self.root_dir, 'full_dataset', name)
 

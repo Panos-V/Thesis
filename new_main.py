@@ -41,11 +41,11 @@ if __name__ == '__main__':
                                 'vqvae (only train vqvae) | classifier (only train classifier)')
     parser.add_argument('--strong_classifier', default='base_resnet18', type=str,
                         help='base_resnet18 | base_efficientnet_b0 | base_densenet121')
-    parser.add_argument('--loss', default='ce', type=str)
+    parser.add_argument('--loss', default='mse', type=str)
 
     #vqvae
-    parser.add_argument('--vqvae_hiddens', default=512, type=int, help='hidden dimension for vqvae')
-    parser.add_argument('--vqvae_residual_hiddens', default=512, type=int, help='hidden dimension for vqvae residual stack')
+    parser.add_argument('--vqvae_hiddens', default=128, type=int, help='hidden dimension for vqvae')
+    parser.add_argument('--vqvae_residual_hiddens', default=128, type=int, help='hidden dimension for vqvae residual stack')
     parser.add_argument('--vqvae_residual_layers', default=2, type=int, help='number of layers for vqvae residual stack')
     parser.add_argument('--vqvae_num_embeddings', default=1024, type=int, help='number of embeddings for vqvae')
     parser.add_argument('--vqvae_embedding_dim', default=64, type=int, help='embedding dimension for vqvae')
