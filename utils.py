@@ -1,8 +1,11 @@
 import torch
+import numpy as np
 
 import data_config
 from datasets.SkinCancerData import Fitzpatrick
 from torch.utils.data import DataLoader
+
+from torchvision import utils
 
 def get_device(args):
     # set gpu ids
@@ -40,3 +43,11 @@ def get_dataloaders(args):
                                  for x in ['train', 'val']}
     
     return dataloaders
+
+def make_numpy_grid(tensor_data, pad_value=0,padding=0):
+    tensor_data = tensor_data.detach()
+    vis = utils.make_grid(tensor_data, pad_value=pad_value,padding=padding)
+    vis = np.array(vis.cpu()).transpose((1,2,0))
+    if vis.shape[2] == 1:
+        vis = np.stack([vis, vis, vis], axis=-1)
+    return vis

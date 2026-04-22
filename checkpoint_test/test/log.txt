@@ -1,42 +1,114 @@
-================ (Tue Apr 21 12:43:39 2026) ================
-gpu_ids: [] project_name: test checkpoint_root: checkpoint_test num_workers: 0 dataset: CDDataset data_name: test batch_size: 16 split: train split_val: val img_size: 32 n_class: 2 train: vqvae strong_classifier: base_resnet18 loss: mse vqvae_hiddens: 128 vqvae_residual_hiddens: 128 vqvae_residual_layers: 2 vqvae_num_embeddings: 1024 vqvae_embedding_dim: 64 vqvae_commitment_cost: 0.25 optimizer: sgd lr: 0.0001 max_epochs: 100 lr_policy: linear lr_decay_iters: 100 accumulation_steps: 0 checkpoint_dir: checkpoint_test/test vis_dir: vis/test lr: 0.0001000
-Is_training: True. Epoch 0 / 99, epoch_VQ_loss= 0.07840
+================ (Wed Apr 22 11:59:51 2026) ================
+gpu_ids: -1 project_name: test checkpoint_root: checkpoint_test num_workers: 0 dataset: CDDataset data_name: test batch_size: 16 split: train split_val: val img_size: 32 n_class: 2 train: vqvae strong_classifier: base_resnet18 loss: mse vqvae_hiddens: 128 vqvae_residual_hiddens: 128 vqvae_residual_layers: 2 vqvae_num_embeddings: 1024 vqvae_embedding_dim: 64 vqvae_commitment_cost: 0.25 optimizer: sgd lr: 0.0001 max_epochs: 100 lr_policy: linear lr_decay_iters: 100 accumulation_steps: 0 vis_dir: vis\test checkpoint_dir: checkpoint_test\test lr: 0.0001000
+Is_training: True. Epoch 0 / 99, epoch_VQ_loss= 0.28705
 Begin evaluation...
-Is_training: False. Epoch 0 / 99, epoch_VQ_loss= 0.07537
+Is_training: False. Epoch 0 / 99, epoch_VQ_loss= 0.26895
 Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 0)
 
+**********Best model updated!
+
 lr: 0.0000990
-Is_training: True. Epoch 1 / 99, epoch_VQ_loss= 0.07820
+Is_training: True. Epoch 1 / 99, epoch_VQ_loss= 0.31155
 Begin evaluation...
-Is_training: False. Epoch 1 / 99, epoch_VQ_loss= 0.07433
+Is_training: False. Epoch 1 / 99, epoch_VQ_loss= 0.25919
 Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 0)
 
 lr: 0.0000980
-Is_training: True. Epoch 2 / 99, epoch_VQ_loss= 0.07669
+Is_training: True. Epoch 2 / 99, epoch_VQ_loss= 0.25251
 Begin evaluation...
-Is_training: False. Epoch 2 / 99, epoch_VQ_loss= 0.07305
+Is_training: False. Epoch 2 / 99, epoch_VQ_loss= 0.20279
 Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 0)
+
+**********Best model updated!
 
 lr: 0.0000970
-Is_training: True. Epoch 3 / 99, epoch_VQ_loss= 0.07749
+Is_training: True. Epoch 3 / 99, epoch_VQ_loss= 0.23404
 Begin evaluation...
-Is_training: False. Epoch 3 / 99, epoch_VQ_loss= 0.07548
-Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 0)
+Is_training: False. Epoch 3 / 99, epoch_VQ_loss= 0.18191
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 2)
+
+**********Best model updated!
 
 lr: 0.0000960
-Is_training: True. Epoch 4 / 99, epoch_VQ_loss= 0.07303
+Is_training: True. Epoch 4 / 99, epoch_VQ_loss= 0.17644
 Begin evaluation...
-Is_training: False. Epoch 4 / 99, epoch_VQ_loss= 0.07335
-Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 0)
+Is_training: False. Epoch 4 / 99, epoch_VQ_loss= 0.13491
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 3)
+
+**********Best model updated!
 
 lr: 0.0000950
-Is_training: True. Epoch 5 / 99, epoch_VQ_loss= 0.07308
+Is_training: True. Epoch 5 / 99, epoch_VQ_loss= 0.15569
 Begin evaluation...
-Is_training: False. Epoch 5 / 99, epoch_VQ_loss= 0.06910
-Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 0)
+Is_training: False. Epoch 5 / 99, epoch_VQ_loss= 0.12529
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 4)
+
+**********Best model updated!
 
 lr: 0.0000941
-Is_training: True. Epoch 6 / 99, epoch_VQ_loss= 0.06911
+Is_training: True. Epoch 6 / 99, epoch_VQ_loss= 0.11507
 Begin evaluation...
-Is_training: False. Epoch 6 / 99, epoch_VQ_loss= 0.06860
-Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 0)
+Is_training: False. Epoch 6 / 99, epoch_VQ_loss= 0.10147
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 5)
+
+**********Best model updated!
+
+lr: 0.0000931
+Is_training: True. Epoch 7 / 99, epoch_VQ_loss= 0.10175
+Begin evaluation...
+Is_training: False. Epoch 7 / 99, epoch_VQ_loss= 0.08310
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 6)
+
+**********Best model updated!
+
+lr: 0.0000921
+================ (Wed Apr 22 12:03:53 2026) ================
+gpu_ids: -1 project_name: test checkpoint_root: checkpoint_test num_workers: 0 dataset: CDDataset data_name: test batch_size: 16 split: train split_val: val img_size: 32 n_class: 2 train: vqvae strong_classifier: base_resnet18 loss: mse vqvae_hiddens: 128 vqvae_residual_hiddens: 128 vqvae_residual_layers: 2 vqvae_num_embeddings: 1024 vqvae_embedding_dim: 64 vqvae_commitment_cost: 0.25 optimizer: sgd lr: 0.0001 max_epochs: 100 lr_policy: linear lr_decay_iters: 100 accumulation_steps: 0 vis_dir: vis\test checkpoint_dir: checkpoint_test\test loading last checkpoint...
+Epoch_to_start = 8, Historical_best_acc = 0.0000 (at epoch 6)
+
+lr: 0.0000921
+Is_training: True. Epoch 8 / 99, epoch_VQ_loss= 0.07667
+Begin evaluation...
+Is_training: False. Epoch 8 / 99, epoch_VQ_loss= 0.06926
+Latest model updated. Epoch loss=0.2797, Best loss:=inf (at epoch 6)
+
+**********Best model updated!
+
+lr: 0.0000911
+Is_training: True. Epoch 9 / 99, epoch_VQ_loss= 0.06428
+Begin evaluation...
+Is_training: False. Epoch 9 / 99, epoch_VQ_loss= 0.05847
+Latest model updated. Epoch loss=0.2670, Best loss:=0.2797 (at epoch 8)
+
+**********Best model updated!
+
+lr: 0.0000901
+Is_training: True. Epoch 10 / 99, epoch_VQ_loss= 0.05240
+Begin evaluation...
+Is_training: False. Epoch 10 / 99, epoch_VQ_loss= 0.04730
+Latest model updated. Epoch loss=0.2565, Best loss:=0.2670 (at epoch 9)
+
+**********Best model updated!
+
+lr: 0.0000891
+Is_training: True. Epoch 11 / 99, epoch_VQ_loss= 0.04745
+Begin evaluation...
+Is_training: False. Epoch 11 / 99, epoch_VQ_loss= 0.04150
+Latest model updated. Epoch loss=0.2511, Best loss:=0.2565 (at epoch 10)
+
+**********Best model updated!
+
+lr: 0.0000881
+Is_training: True. Epoch 12 / 99, epoch_VQ_loss= 0.03987
+Begin evaluation...
+Is_training: False. Epoch 12 / 99, epoch_VQ_loss= 0.03739
+Latest model updated. Epoch loss=0.2431, Best loss:=0.2511 (at epoch 11)
+
+**********Best model updated!
+
+lr: 0.0000871
+Is_training: True. Epoch 13 / 99, epoch_VQ_loss= 0.03771
+Begin evaluation...
+Is_training: False. Epoch 13 / 99, epoch_VQ_loss= 0.03250
+Latest model updated. Epoch loss=0.2398, Best loss:=0.2431 (at epoch 12)
+

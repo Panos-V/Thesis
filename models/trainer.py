@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.optim as optim
 import os
 import cv2 
+import utils
+import matplotlib.pyplot as plt
 
 from misc.logger_tool import *
 from misc.metric_tool import *
@@ -42,11 +44,11 @@ class Trainer():
 
         # define optimizers
         if args.optimizer == 'sgd':
-            self.optimizer_G = optim.SGD(self.net.parameters(),
+            self.optimizer = optim.SGD(self.net.parameters(),
                                           lr=self.lr, momentum=0.9,
                                             weight_decay=5e-4)
         elif args.optimizer == 'adam':
-            self.optimizer_G = optim.Adam(self.net.parameters(),
+            self.optimizer = optim.Adam(self.net.parameters(),
                                            lr=self.lr)
 
 
@@ -67,6 +69,7 @@ class Trainer():
 
         #  training log
         self.epoch_acc = 0
+        self.best_loss = np.inf
         self.best_val_acc = 0.0
         self.best_epoch_id = 0
         self.epoch_to_start = 0
@@ -130,8 +133,8 @@ class Trainer():
                 self.classifier.load_state_dict(checkpoint['classifier_state_dict'])
             elif self.train == 'full':
                 self.net.load_state_dict(checkpoint['model_strong_state_dict'])
-            self.optimizer_G.load_state_dict(checkpoint['net_optimizer_state_dict'])
-            self.exp_lr_scheduler_G.load_state_dict(
+            self.optimizer.load_state_dict(checkpoint['net_optimizer_state_dict'])
+            self.exp_lr_scheduler.load_state_dict(
                 checkpoint['exp_lr_scheduler_G_state_dict'])
 
             self.net.to(self.device)
@@ -154,17 +157,31 @@ class Trainer():
 
         # save current model
         self._save_checkpoint(ckpt_name='last_ckpt.pt')
-        self.logger.write('Lastest model updated. Epoch_acc=%.4f, Historical_best_acc=%.4f (at epoch %d)\n'
-              % (self.epoch_acc, self.best_val_acc, self.best_epoch_id))
+
+        if self.train == 'vqvae':
+            message = 'Latest model updated. Epoch loss=%.4f, Best loss:=%.4f (at epoch %d)\n' \
+                % (self.loss,self.best_loss,self.best_epoch_id)
+        else:
+            message = 'Lastest model updated. Epoch_acc=%.4f, Historical_best_acc=%.4f (at epoch %d)\n' \
+              % (self.epoch_acc, self.best_val_acc, self.best_epoch_id)
+        self.logger.write(message)
         self.logger.write('\n')
 
         # update the best model (based on eval acc)
-        if self.epoch_acc > self.best_val_acc:
-            self.best_val_acc = self.epoch_acc
-            self.best_epoch_id = self.epoch_id
-            self._save_checkpoint(ckpt_name='best_ckpt.pt')
-            self.logger.write('*' * 10 + 'Best model updated!\n')
-            self.logger.write('\n')
+        if self.train == 'vqvae':
+            if self.loss < self.best_loss:
+                self.best_loss = self.loss
+                self.best_epoch_id = self.epoch_id
+                self._save_checkpoint(ckpt_name='best_ckpt.pt')
+                self.logger.write("*"*10+'Best model updated!\n')
+                self.logger.write('\n')
+        else:
+            if self.epoch_acc > self.best_val_acc:
+                self.best_val_acc = self.epoch_acc
+                self.best_epoch_id = self.epoch_id
+                self._save_checkpoint(ckpt_name='best_ckpt.pt')
+                self.logger.write('*' * 10 + 'Best model updated!\n')
+                self.logger.write('\n')
 
     def _timer_update(self):
         self.global_step = (self.epoch_id-self.epoch_to_start) * self.steps_per_epoch + self.batch_id
@@ -175,9 +192,7 @@ class Trainer():
         return imps, est
 
     def _visualize_pred(self):
-
-        pred = torch.argmax(self.pred, dim=1, keepdim=True)
-        pred_vis = pred * 255
+        pred_vis = self.net_pred * 255
 
         return pred_vis
 
@@ -187,8 +202,8 @@ class Trainer():
             'best_val_acc': self.best_val_acc,
             'best_epoch_id': self.best_epoch_id,
             'model_strong_state_dict': self.net.state_dict(),
-            'net_optimizer_state_dict': self.optimizer_G.state_dict(),
-            'exp_lr_scheduler_G_state_dict': self.exp_lr_scheduler_G.state_dict(),
+            'net_optimizer_state_dict': self.optimizer.state_dict(),
+            'exp_lr_scheduler_G_state_dict': self.exp_lr_scheduler.state_dict(),
             'vqvae_state_dict': self.vqvae.state_dict() if self.vqvae is not None else None,
             'classifier_state_dict': self.classifier.state_dict() if self.classifier is not None else None,
         }, os.path.join(self.checkpoint_dir, ckpt_name))
@@ -262,6 +277,18 @@ class Trainer():
                         imps*self.batch_size, est,
                         self.vq_loss.item())
                 self.logger.write(message)
+        
+        if np.mod(self.batch_id, 500) == 1:
+            vis_input = utils.make_numpy_grid(self.batch['img'])
+
+            vis_pred = utils.make_numpy_grid(self._visualize_pred())
+
+            vis = np.concatenate([vis_input, vis_pred], axis=0)
+            vis = np.clip(vis, a_min=0.0, a_max=1.0)
+            file_name = os.path.join(
+                self.vis_dir, 'istrain_'+str(self.is_training)+'_'+
+                              str(self.epoch_id)+'_'+str(self.batch_id)+'.jpg')
+            plt.imsave(file_name, vis)
 
     def _collect_epoch_states(self):
         if self.train == 'strong_classifier':
@@ -363,7 +390,7 @@ class Trainer():
                 del batch
             self._collect_epoch_states()
             self._update_training_acc_curve()
-            self._update_lr_scheduler()
+            self._update_lr_schedulers()
             
 
             torch.cuda.empty_cache()
