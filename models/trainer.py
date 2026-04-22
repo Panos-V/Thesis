@@ -18,6 +18,8 @@ class Trainer():
         self.dataset = args.dataset
         self.data_name = args.data_name
         self.n_class = args.n_class
+        self.train = args.train
+        self.argloss = args.loss
         self.accumlation_steps = args.accumulation_steps
         # define network
         self.vqvae,self.classifier = define_net(args=args)
@@ -31,20 +33,20 @@ class Trainer():
         # Learning rate and Beta1 for Adam optimizers
         self.lr = args.lr
 
-        if self.train == 'full':
-            model_to_train = self.net
-        elif self.train == 'vqvae':
-            model_to_train = self.vqvae
-        elif self.train == 'classifier':
-            model_to_train = self.classifier
+        if args.train == 'strong_classifier':
+            pass
+        elif args.train == 'vqvae':
+            self.net = self.vqvae
+        elif args.train == 'classifier':
+            self.net = self.classifier
 
         # define optimizers
-        if args.optimizer_net == 'sgd':
-            self.optimizer = optim.SGD(model_to_train.parameters(),
+        if args.optimizer == 'sgd':
+            self.optimizer_G = optim.SGD(self.net.parameters(),
                                           lr=self.lr, momentum=0.9,
                                             weight_decay=5e-4)
-        elif args.optimizer_net == 'adam':
-            self.optimizer = optim.Adam(model_to_train.parameters(),
+        elif args.optimizer == 'adam':
+            self.optimizer_G = optim.Adam(self.net.parameters(),
                                            lr=self.lr)
 
 
@@ -53,6 +55,7 @@ class Trainer():
         self.exp_lr_scheduler = get_scheduler(self.optimizer, args)
 
         self.running_metric = ConfuseMatrixMeter(n_class=2)
+        self.running_fairness = FairnessMeter(n_class=2)
 
         # define logger file
         logger_path = os.path.join(args.checkpoint_dir, 'log.txt')
@@ -84,10 +87,12 @@ class Trainer():
         self.vis_dir = args.vis_dir
 
         # define the loss functions
-        if args.loss == 'ce':
+        if self.argloss == 'ce':
             self._pxl_loss = nn.CrossEntropyLoss()
+        elif self.argloss == 'mse':
+            self._pxl_loss = nn.MSELoss()
         else:
-            raise NotImplementedError(args.loss)
+            raise NotImplemented(self.argloss)
 
         self.VAL_ACC = np.array([], np.float32)
         if os.path.exists(os.path.join(self.checkpoint_dir, 'val_acc.npy')):
@@ -110,14 +115,24 @@ class Trainer():
         if os.path.exists(os.path.join(self.checkpoint_dir, ckpt_name)):
             self.logger.write('loading last checkpoint...\n')
             # load the entire checkpoint
-            checkpoint = torch.load(os.path.join(self.checkpoint_dir, ckpt_name),
-                                    map_location=self.device)
-            # update net states
-            self.net.load_state_dict(checkpoint['model_state_dict'])
+            try:
+                checkpoint = torch.load(os.path.join(self.checkpoint_dir, ckpt_name),
+                                        map_location=self.device)
+            except Exception as e:
+                self.logger.write('Error occurred while loading checkpoint: %s\n' % str(e))
+                return
 
-            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            self.exp_lr_scheduler.load_state_dict(
-                checkpoint['exp_lr_scheduler_state_dict'])
+
+            # update net states
+            if self.train == 'vqvae':
+                self.vqvae.load_state_dict(checkpoint['vqvae_state_dict'])
+            elif self.train == 'classifier':
+                self.classifier.load_state_dict(checkpoint['classifier_state_dict'])
+            elif self.train == 'full':
+                self.net.load_state_dict(checkpoint['model_strong_state_dict'])
+            self.optimizer_G.load_state_dict(checkpoint['net_optimizer_state_dict'])
+            self.exp_lr_scheduler_G.load_state_dict(
+                checkpoint['exp_lr_scheduler_G_state_dict'])
 
             self.net.to(self.device)
 
@@ -134,6 +149,22 @@ class Trainer():
 
         else:
             print('training from scratch...')
+
+    def _update_checkpoints(self):
+
+        # save current model
+        self._save_checkpoint(ckpt_name='last_ckpt.pt')
+        self.logger.write('Lastest model updated. Epoch_acc=%.4f, Historical_best_acc=%.4f (at epoch %d)\n'
+              % (self.epoch_acc, self.best_val_acc, self.best_epoch_id))
+        self.logger.write('\n')
+
+        # update the best model (based on eval acc)
+        if self.epoch_acc > self.best_val_acc:
+            self.best_val_acc = self.epoch_acc
+            self.best_epoch_id = self.epoch_id
+            self._save_checkpoint(ckpt_name='best_ckpt.pt')
+            self.logger.write('*' * 10 + 'Best model updated!\n')
+            self.logger.write('\n')
 
     def _timer_update(self):
         self.global_step = (self.epoch_id-self.epoch_to_start) * self.steps_per_epoch + self.batch_id
@@ -155,9 +186,11 @@ class Trainer():
             'epoch_id': self.epoch_id,
             'best_val_acc': self.best_val_acc,
             'best_epoch_id': self.best_epoch_id,
-            'model_state_dict': self.net.state_dict(),
-            'optimizer_state_dict': self.optimizer.state_dict(),
-            'exp_lr_scheduler_state_dict': self.exp_lr_scheduler.state_dict()
+            'model_strong_state_dict': self.net.state_dict(),
+            'net_optimizer_state_dict': self.optimizer_G.state_dict(),
+            'exp_lr_scheduler_G_state_dict': self.exp_lr_scheduler_G.state_dict(),
+            'vqvae_state_dict': self.vqvae.state_dict() if self.vqvae is not None else None,
+            'classifier_state_dict': self.classifier.state_dict() if self.classifier is not None else None,
         }, os.path.join(self.checkpoint_dir, ckpt_name))
 
     def _update_metric(self):
@@ -169,32 +202,77 @@ class Trainer():
         current_score = self.running_metric.update_cm(pr=pred.cpu().numpy(), gt=target.cpu().numpy())
         return current_score
     
+    def _update_fairness(self):
+        # 1. Extract data and move to device
+        target = self.batch['label'].to(self.device).detach()
+        fitzpatrick = self.batch['fitzpatrick'].to(self.device).detach()
+        
+        # 2. Process predictions
+        pred = self.net_pred.detach()
+        pred = torch.argmax(pred, dim=1)
+
+        # 3. Create boolean masks
+        # Protected: Fitzpatrick 4, 5, 6 | Non-protected: 1, 2, 3
+        protected_mask = fitzpatrick > 3
+        non_protected_mask = ~protected_mask
+
+        # 4. Split the data
+
+        target_prot = target[protected_mask].cpu().numpy()
+        pred_prot = pred[protected_mask].cpu().numpy()
+
+        # Non-protected group
+        target_non_prot = target[non_protected_mask].cpu().numpy()
+        pred_non_prot = pred[non_protected_mask].cpu().numpy()
+
+        # 5. Update fairness tracker
+
+        current_score = self.running_fairness.update_cm(
+            pr_prot=pred_prot, 
+            gt_prot=target_prot,
+            pr_non_prot=pred_non_prot,
+            gt_non_prot=target_non_prot
+        )
+        
+        return current_score
+
     def _collect_running_batch_states(self):
         
-        running_acc = self._update_metric()
+        if self.train == 'strong_classifier':
+            running_acc = self._update_metric()
+            running_fairness = self._update_fairness()
 
-        m = len(self.dataloaders['train'])
-        if self.is_training is False:
-            m = len(self.dataloaders['val'])
+            m = len(self.dataloaders['train'])
+            if self.is_training is False:
+                m = len(self.dataloaders['val'])
 
-        imps, est = self._timer_update()
-        if np.mod(self.batch_id, 100) == 1:
-            message = 'Is_training: %s. [%d,%d][%d,%d], imps: %.2f, est: %.2fh, loss: %.5f, running_mf1: %.5f\n' %\
-                      (self.is_training, self.epoch_id, self.max_num_epochs-1, self.batch_id, m,
-                     imps*self.batch_size, est,
-                     self.loss.item(), running_acc)
-            self.logger.write(message)
+            imps, est = self._timer_update()
+            if np.mod(self.batch_id, 100) == 1:
+                message = 'Is_training: %s. [%d,%d][%d,%d], imps: %.2f, est: %.2fh, G_loss: %.5f, running_mf1: %.5f\n, running_EO: %.5f,' \
+                ' running_DI: %.5f, running_AP: %.5f' %\
+                        (self.is_training, self.epoch_id, self.max_num_epochs-1, self.batch_id, m,
+                        imps*self.batch_size, est,
+                        self.loss.item(), running_acc, running_fairness['EO'], running_fairness['DI'], running_fairness['AP'])
+                self.logger.write(message)
+        elif self.train == 'vqvae':
+            imps, est = self._timer_update()
+            if np.mod(self.batch_id, 100) == 1:
+                message = 'Is_training: %s. [%d,%d][%d,%d], imps: %.2f, est: %.5fh, VQ_loss: %.5f\n' %\
+                        (self.is_training, self.epoch_id, self.max_num_epochs-1, self.batch_id, len(self.dataloaders['train']),
+                        imps*self.batch_size, est,
+                        self.vq_loss.item())
+                self.logger.write(message)
 
     def _collect_epoch_states(self):
-        scores = self.running_metric.get_scores()
-        self.epoch_acc = scores['mf1']
-        self.logger.write('Is_training: %s. Epoch %d / %d, epoch_mF1= %.5f\n' %
-              (self.is_training, self.epoch_id, self.max_num_epochs-1, self.epoch_acc))
-        message = ''
-        for k, v in scores.items():
-            message += '%s: %.5f ' % (k, v)
-        self.logger.write(message+'\n')
-        self.logger.write('\n')
+        if self.train == 'strong_classifier':
+            scores = self.running_metric.get_scores()
+            self.epoch_acc = scores['mf1']
+            self.logger.write('Is_training: %s. Epoch %d / %d, epoch_mF1= %.5f\n' %
+                (self.is_training, self.epoch_id, self.max_num_epochs-1, self.epoch_acc))
+            message = ''
+        elif self.train == 'vqvae':
+            self.logger.write('Is_training: %s. Epoch %d / %d, epoch_VQ_loss= %.5f\n' %
+                (self.is_training, self.epoch_id, self.max_num_epochs-1, self.vq_loss.item()))
 
     def adversarial_walk(self,vqvae_out,steps=4,a=0.1):
         h_delta = vqvae_out.clone().detach().requires_grad_(True)
@@ -226,27 +304,35 @@ class Trainer():
         self.running_metric.clear()
 
     def _forward_pass(self,batch):
-        if self.train == 'full':
-            vqvae_out = self.vqvae.encoder(batch['image'].to(self.device))
-            vqvae_out = self.vqvae.pre_vq_conv(vqvae_out)
-            self.pred = self.adversarial_walk(vqvae_out)
-            self.pred = self.vqvae.decoder(self.pred)
-            self.pred = self.net(self.pred)
-        elif self.train == 'vqvae':
+        self.batch = batch
+
+        if self.train == 'strong_classifier':
             vqvae_out = self.vqvae(batch['image'].to(self.device))
+            self.net_pred = self.adversarial_walk(vqvae_out)
+            self.net_pred = self.net(self.net_pred)
+        elif self.train == 'vqvae':
+            self.vq_loss, self.net_pred, _ = self.vqvae(batch['image'].to(self.device))
         elif self.train == 'classifier':
             vqvae_out = self.vqvae(batch['image'].to(self.device))
-            vqvae_out = self.vqvae.pre_vq_conv(vqvae_out)  
-            self.pred = self.classifier(vqvae_out)
-    
+            vqvae_out = self.vqvae.pre_vq_conv(vqvae_out)
+            self.net_pred = self.classifier(vqvae_out)
+
+
     def _backward(self):
-        gt = self.batch['label'].to(self.device).long()
-        self.loss = self._pxl_loss(self.pred, gt)
+
+        if self.argloss == 'mse':
+            gt = self.batch['image'].to(self.device).float()
+            self.loss = self._pxl_loss(self.net_pred.float(), gt) + self.vq_loss
+            print(f"recon_loss={self.loss:.4f}, vq_loss={self.vq_loss:.4f}")
+        elif self.argloss == 'ce':
+            gt = self.batch['label'].to(self.device).long()
+            self.loss = self._pxl_loss(self.net_pred.float(), gt)
+        
         self.loss.backward()
     
     def train_models(self):
         self._load_checkpoint()
-        # loop over the dataset multiple times
+
         for self.epoch_id in range(self.epoch_to_start, self.max_num_epochs):
 
             ################## train #################
@@ -258,9 +344,9 @@ class Trainer():
             self.logger.write('lr: %0.7f\n' % self.optimizer.param_groups[0]['lr'])
 
             for self.batch_id, batch in enumerate(self.dataloaders['train'], 0):
-                self._forward_pass(batch)
-                
-                # update net
+
+                self._forward_pass(batch)               
+                # update G
                 self._backward()
                 if self.accumlation_steps > 0:
                     if (self.batch_id + 1) % self.accumlation_steps == 0:
@@ -277,7 +363,7 @@ class Trainer():
                 del batch
             self._collect_epoch_states()
             self._update_training_acc_curve()
-            self._update_lr_schedulers()
+            self._update_lr_scheduler()
             
 
             torch.cuda.empty_cache()

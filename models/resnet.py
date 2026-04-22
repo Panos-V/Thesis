@@ -20,68 +20,7 @@ import torch.backends.cudnn as cudnn
 device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
 print(f"Using {device} device")
 
-def fairness_metrics(y_true, y_pred, protected, lambda_eo=0.1, lambda_di=0.1, lambda_ap=0.1):
-    if not isinstance(y_true, torch.Tensor):
-        y_true = torch.tensor(y_true, dtype=torch.float32)
-    if not isinstance(y_pred, torch.Tensor):
-        y_pred = torch.tensor(y_pred, dtype=torch.float32)
-    if not isinstance(protected, torch.Tensor):
-        protected = torch.tensor(protected, dtype=torch.float32)
 
-    y_true = y_true.to(device)
-    y_pred = y_pred.to(device)
-    protected = protected.to(device)
-
-    protected_mask = (protected == 1)
-    non_protected_mask = (protected == 0)
-
-    # EO: TPR ratio
-    positive_true_mask = y_true == 1
-    tp_protected = torch.sum((positive_true_mask & (y_pred == 1) & protected_mask))
-    tp_non_protected = torch.sum((positive_true_mask & (y_pred == 1) & non_protected_mask))
-
-    pos_protected = torch.sum(positive_true_mask & protected_mask)
-    pos_non_protected = torch.sum((positive_true_mask & non_protected_mask))
-
-    EO = (tp_protected / pos_protected) / (tp_non_protected / pos_non_protected) \
-            if pos_protected > 0 and pos_non_protected > 0 else 0
-
-    EO_penalty = lambda_eo * torch.abs(tp_protected / pos_protected - tp_non_protected / pos_non_protected) \
-            if pos_protected > 0 and pos_non_protected > 0 else 0
-    EO = min(EO, 1 / EO) if EO > 0 else 0
-    # DI: Positive prediction ratio
-    success_protected = torch.sum((y_pred == 1) & protected_mask)
-    success_non_protected = torch.sum((y_pred == 1) & non_protected_mask)
-    
-    total_protected = torch.sum(protected_mask)
-    total_non_protected = torch.sum(non_protected_mask)
-    
-    DI = (success_protected / total_protected) / (success_non_protected / total_non_protected) \
-            if total_protected > 0 and total_non_protected > 0 else 0
-    DI_penalty = lambda_di * torch.abs(success_protected / total_protected - success_non_protected / total_non_protected) \
-        if total_protected > 0 and total_non_protected > 0 else 0
-    DI = min(DI,1/DI) if DI > 0 else 0
-    # AP: Accuracy parity
-    acc_protected = torch.sum(((y_pred == y_true) & protected_mask)) / total_protected \
-        if total_protected > 0 else 0
-    acc_non_protected = torch.sum(((y_pred == y_true) & non_protected_mask)) / total_non_protected \
-        if total_non_protected > 0 else 0
-    
-    AP = acc_protected / acc_non_protected \
-        if acc_protected > 0 and acc_non_protected > 0 else 0
-    
-    AP_penalty = lambda_ap * torch.abs(acc_protected - acc_non_protected) \
-        if acc_protected > 0 and acc_non_protected > 0 else 0
-    AP = min(AP, 1 / AP) if AP > 0 else 0
-    return EO,DI,AP,AP_penalty+DI_penalty+EO_penalty
-
-
-def imshow(img):
-    img = img / 2 + 0.5  # unnormalize
-    npimg = img.numpy(force = True)
-    plt.imshow(np.transpose(npimg, (1, 2, 0)))
-    plt.axis('off')
-    plt.show()
 
 def train_model(model,vq,classifier, criterion, optimizer, train_loader, test_loader,
                 fair=False,ADV = False ,ALPHA = 0.025,num_epochs=25):
@@ -455,3 +394,72 @@ def create_model(vq,classifier,train,test,epoch_head ,epoch_tune,fair=False,pati
     ])
 _,skin_test = SkinCancerData.CreateLoader("Code/archive/", transform, batch_size=64) """
 #inference("bias_resnet20.pth", skin_test,transform)
+
+
+
+
+#---------------------------------------------------------------------------------------------#
+
+
+def fairness_metrics(y_true, y_pred, protected, lambda_eo=0.1, lambda_di=0.1, lambda_ap=0.1):
+    if not isinstance(y_true, torch.Tensor):
+        y_true = torch.tensor(y_true, dtype=torch.float32)
+    if not isinstance(y_pred, torch.Tensor):
+        y_pred = torch.tensor(y_pred, dtype=torch.float32)
+    if not isinstance(protected, torch.Tensor):
+        protected = torch.tensor(protected, dtype=torch.float32)
+
+    y_true = y_true.to(device)
+    y_pred = y_pred.to(device)
+    protected = protected.to(device)
+
+    protected_mask = (protected == 1)
+    non_protected_mask = (protected == 0)
+
+    # EO: TPR ratio
+    positive_true_mask = y_true == 1
+    tp_protected = torch.sum((positive_true_mask & (y_pred == 1) & protected_mask))
+    tp_non_protected = torch.sum((positive_true_mask & (y_pred == 1) & non_protected_mask))
+
+    pos_protected = torch.sum(positive_true_mask & protected_mask)
+    pos_non_protected = torch.sum((positive_true_mask & non_protected_mask))
+
+    EO = (tp_protected / pos_protected) / (tp_non_protected / pos_non_protected) \
+            if pos_protected > 0 and pos_non_protected > 0 else 0
+
+    EO_penalty = lambda_eo * torch.abs(tp_protected / pos_protected - tp_non_protected / pos_non_protected) \
+            if pos_protected > 0 and pos_non_protected > 0 else 0
+    EO = min(EO, 1 / EO) if EO > 0 else 0
+    # DI: Positive prediction ratio
+    success_protected = torch.sum((y_pred == 1) & protected_mask)
+    success_non_protected = torch.sum((y_pred == 1) & non_protected_mask)
+    
+    total_protected = torch.sum(protected_mask)
+    total_non_protected = torch.sum(non_protected_mask)
+    
+    DI = (success_protected / total_protected) / (success_non_protected / total_non_protected) \
+            if total_protected > 0 and total_non_protected > 0 else 0
+    DI_penalty = lambda_di * torch.abs(success_protected / total_protected - success_non_protected / total_non_protected) \
+        if total_protected > 0 and total_non_protected > 0 else 0
+    DI = min(DI,1/DI) if DI > 0 else 0
+    # AP: Accuracy parity
+    acc_protected = torch.sum(((y_pred == y_true) & protected_mask)) / total_protected \
+        if total_protected > 0 else 0
+    acc_non_protected = torch.sum(((y_pred == y_true) & non_protected_mask)) / total_non_protected \
+        if total_non_protected > 0 else 0
+    
+    AP = acc_protected / acc_non_protected \
+        if acc_protected > 0 and acc_non_protected > 0 else 0
+    
+    AP_penalty = lambda_ap * torch.abs(acc_protected - acc_non_protected) \
+        if acc_protected > 0 and acc_non_protected > 0 else 0
+    AP = min(AP, 1 / AP) if AP > 0 else 0
+    return EO,DI,AP,AP_penalty+DI_penalty+EO_penalty
+
+
+def imshow(img):
+    img = img / 2 + 0.5  # unnormalize
+    npimg = img.numpy(force = True)
+    plt.imshow(np.transpose(npimg, (1, 2, 0)))
+    plt.axis('off')
+    plt.show()

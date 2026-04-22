@@ -43,39 +43,43 @@ class CustomDataset(Dataset):
     
 
 class Fitzpatrick(Dataset):
-    def __init__(self):
+    def __init__(self,root_dir,img_size,data_name,is_train=True,split='train',to_tensor=True):
         super().__init__()
-        pass
+        self.root_dir = root_dir
+        self.img_size = img_size
+        self.data_name = data_name
+
+        self.df = pd.read_csv(os.path.join(self.root_dir, self.data_name + '_' + split + '.csv'))
+
+        if is_train:
+            self.augm = transforms.Compose([
+                transforms.Resize((self.img_size, self.img_size)),
+                transforms.RandomHorizontalFlip(0.5),
+                transforms.RandomVerticalFlip(0.5),
+                transforms.GaussianBlur(kernel_size=(5, 5), sigma=(0.1, 0.9)),
+                transforms.ToTensor() if to_tensor else transforms.Lambda(lambda x: x)
+            ])
+        else:
+            self.augm = transforms.Compose([
+                transforms.Resize((self.img_size, self.img_size)),
+                transforms.ToTensor() if to_tensor else transforms.Lambda(lambda x: x)
+            ])
 
     def __len__(self):
-        pass
+        return len(self.df)
 
     def __getitem__(self, index):
-        pass
+        label_map = {'benign': 0,'non-neoplastic':0, 'malignant':1}
 
+        name = self.df.iloc[index]['new_img_name']
+        label = self.df.iloc[index]['three_partition_label']
+        label = torch.tensor(label_map[label],dtype=torch.long)
+        fitzpatrick = self.df.iloc[index]['fitzpatrick']
+        img_path = os.path.join(self.root_dir, 'full_dataset', name)
 
-def CreateLoader(path,transform,batch_size):
-    train = CustomDataset(path,'train',transform=transform)   
-    test = CustomDataset(path,'test',transform=transform)
-    train_loader = DataLoader(train,batch_size=batch_size, shuffle = True,num_workers=8,pin_memory=True)
-    test_loader = DataLoader(test,batch_size=batch_size, shuffle = False,num_workers=8,pin_memory=True)
+        image = Image.open(img_path).convert("RGB")
 
-    return train_loader,test_loader
-    
-    
+        image = self.augm(image)
 
-# transform = transforms.Compose([transforms.ToTensor(),
-#                                 transforms.ToPILImage()])
-# im , _ , _ = data[0]
-
-# img = transform(im)
-# print(type(img))
-# img.show()
-
-
-
-
-
-
-
+        return {'name':name, 'image': image, 'label': label, 'fitzpatrick': fitzpatrick}
 

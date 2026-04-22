@@ -1,23 +1,35 @@
-import models
+import torch
+import torch.functional as F
+import torch.nn as nn
+import torchvision
+from torchvision.models import resnet18, efficientnet_b0, densenet121
+
+from models import vq_vae, simple_classifier
 from torch.optim import lr_scheduler
 
 def define_net(args):
-    if args.train == 'vqvae':
-        nets = models.addNetworks.VQVAE(), None
-    elif args.train == 'classifier':
-        nets = None, models.addNetworks.Classifier(num_classes=args.n_class)
-    elif args.train == 'full':
-        nets = models.addNetworks.VQVAE(), models.addNetworks.Classifier(num_classes=args.n_class)
+
+    img_size = args.img_size
+    in_channels = args.vqvae_embedding_dim * (img_size // 4) * (img_size // 4) # Calculate in_channels based on the output of the vqvae encoder
+
+    nets = vq_vae.model(args.vqvae_hiddens,
+                            args.vqvae_residual_hiddens,
+                            args.vqvae_residual_layers,
+                            args.vqvae_num_embeddings,
+                            args.vqvae_embedding_dim,
+                            args.vqvae_commitment_cost), simple_classifier.model(in_channels=in_channels,
+                                                                                  num_classes=args.n_class)
+
 
     return nets
 
 def define_strong_net(args):
     if args.strong_classifier == 'base_resnet18':
-        net = models.addNetworks.base_resnet18(num_classes=args.n_class)
+        net = base_resnet18(n_classes=args.n_class)
     elif args.strong_classifier == 'base_efficientnet_b0':
-        net = models.addNetworks.base_efficientnet_b0(num_classes=args.n_class)
+        net = base_efficientnet_b0(n_classes=args.n_class)
     elif args.strong_classifier == 'base_densenet121':
-        net = models.addNetworks.base_densenet121(num_classes=args.n_class)
+        net = base_densenet121(n_classes=args.n_class)
     else:
         raise NotImplementedError(f"Unknown strong classifier: {args.strong_classifier}")
     
@@ -49,3 +61,98 @@ def get_scheduler(optimizer, args):
     else:
         return NotImplementedError('learning rate policy [%s] is not implemented' % args.lr_policy)
     return scheduler
+
+##################### Strong classifiers #####################
+
+class Base_Grad_model(nn.Module):
+    def __init__(self):
+        super(Base_Grad_model, self).__init__()
+        self.gradients = None
+        self.features_conv = None
+
+    def activations_hook(self, grad):
+        self.gradients = grad
+
+    def get_activations_gradient(self):
+        return self.gradients
+    
+    def get_activations(self,x):
+        return self.features_conv(x)
+
+class base_resnet18(Base_Grad_model):
+    def __init__(self,n_classes):
+        super(base_resnet18, self).__init__()
+        res = resnet18(weights=resnet18(weights=torchvision.models.ResNet18_Weights.DEFAULT))
+        
+        self.features_conv = nn.Sequential(
+            res.conv1,
+            res.bn1,
+            res.relu,
+            res.maxpool,
+            res.layer1,
+            res.layer2,
+            res.layer3,
+            res.layer4
+        )
+
+        self.avgpool = res.avgpool
+
+        res.fc.out_features = n_classes
+        self.classifier = res.fc.out_features
+
+        self.gradients = None
+
+    def forward(self, x):
+        x = self.features_conv(x)
+
+        h = x.register_hook(self.activations_hook)
+            
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
+        x = self.classifier(x)
+        return x
+
+
+class base_efficientnet_b0(Base_Grad_model):
+    def __init__(self,n_classes):
+        super(base_efficientnet_b0, self).__init__()
+        eff = efficientnet_b0(weights=efficientnet_b0(weights=torchvision.models.EfficientNet_B0_Weights.DEFAULT))
+
+        self.features_conv = eff.features
+        self.avg_pool = eff.avgpool
+        eff.classifier[1].out_features = n_classes
+        self.classifier = eff.classifier
+        self.gradients = None
+
+    def forward(self, x):
+        x = self.features_conv(x)
+
+        h = x.register_hook(self.activations_hook)
+        
+        x = F.relu(x, inplace=False) # Use False to avoid gradient issues
+        x = self.avg_pool(x)
+        x = torch.flatten(x, 1)
+        x = self.classifier(x)
+        return x
+
+class base_densenet121(Base_Grad_model):
+    def __init__(self,n_classes):
+        super(base_densenet121, self).__init__()
+        dn = densenet121(pretrained=True)
+        self.features_conv = dn.features
+        self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
+        dn.classifier.out_features = n_classes
+        self.classifier = dn.classifier
+        self.gradients = None
+
+
+    def forward(self, x):
+        x = self.features_conv(x)
+
+        h = x.register_hook(self.activations_hook)
+        
+        x = F.relu(x, inplace=False) # Use False to avoid gradient issues
+        x = self.avg_pool(x)
+        x = torch.flatten(x, 1)
+        x = self.classifier(x)
+        return x
