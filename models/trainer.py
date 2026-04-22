@@ -22,7 +22,7 @@ class Trainer():
         # define network
         self.vqvae,self.classifier = define_net(args=args)
         self.net = define_strong_net(args=args)
-
+        self.train = args.train
         self.device = torch.device("cuda:%s" % args.gpu_ids[0] if torch.cuda.is_available() and len(args.gpu_ids)>0
                                    else "cpu")
 
@@ -31,26 +31,26 @@ class Trainer():
         # Learning rate and Beta1 for Adam optimizers
         self.lr = args.lr
 
-        if args.train == 'full':
+        if self.train == 'full':
             model_to_train = self.net
-        elif args.train == 'vqvae':
+        elif self.train == 'vqvae':
             model_to_train = self.vqvae
-        elif args.train == 'classifier':
+        elif self.train == 'classifier':
             model_to_train = self.classifier
 
         # define optimizers
         if args.optimizer_net == 'sgd':
-            self.optimizer_G = optim.SGD(model_to_train.parameters(),
+            self.optimizer = optim.SGD(model_to_train.parameters(),
                                           lr=self.lr, momentum=0.9,
                                             weight_decay=5e-4)
         elif args.optimizer_net == 'adam':
-            self.optimizer_G = optim.Adam(model_to_train.parameters(),
+            self.optimizer = optim.Adam(model_to_train.parameters(),
                                            lr=self.lr)
 
 
 
         # define lr schedulers
-        self.exp_lr_scheduler_G = get_scheduler(self.optimizer_G, args)
+        self.exp_lr_scheduler = get_scheduler(self.optimizer, args)
 
         self.running_metric = ConfuseMatrixMeter(n_class=2)
 
@@ -87,7 +87,7 @@ class Trainer():
         if args.loss == 'ce':
             self._pxl_loss = nn.CrossEntropyLoss()
         else:
-            raise NotImplemented(args.loss)
+            raise NotImplementedError(args.loss)
 
         self.VAL_ACC = np.array([], np.float32)
         if os.path.exists(os.path.join(self.checkpoint_dir, 'val_acc.npy')):
@@ -102,8 +102,8 @@ class Trainer():
         if os.path.exists(self.vis_dir) is False:
             os.mkdir(self.vis_dir)
 
-    def _update_lr_scheduler(self):
-        self.exp_lr_scheduler_G.step()
+    def _update_lr_schedulers(self):
+        self.exp_lr_scheduler.step()
 
     def _load_checkpoint(self, ckpt_name='last_ckpt.pt'):
 
@@ -113,11 +113,11 @@ class Trainer():
             checkpoint = torch.load(os.path.join(self.checkpoint_dir, ckpt_name),
                                     map_location=self.device)
             # update net states
-            self.net.load_state_dict(checkpoint['model_G_state_dict'])
+            self.net.load_state_dict(checkpoint['model_state_dict'])
 
-            self.optimizer_G.load_state_dict(checkpoint['optimizer_G_state_dict'])
-            self.exp_lr_scheduler_G.load_state_dict(
-                checkpoint['exp_lr_scheduler_G_state_dict'])
+            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            self.exp_lr_scheduler.load_state_dict(
+                checkpoint['exp_lr_scheduler_state_dict'])
 
             self.net.to(self.device)
 
@@ -145,7 +145,7 @@ class Trainer():
 
     def _visualize_pred(self):
 
-        pred = torch.argmax(self.G_pred, dim=1, keepdim=True)
+        pred = torch.argmax(self.pred, dim=1, keepdim=True)
         pred_vis = pred * 255
 
         return pred_vis
@@ -155,19 +155,15 @@ class Trainer():
             'epoch_id': self.epoch_id,
             'best_val_acc': self.best_val_acc,
             'best_epoch_id': self.best_epoch_id,
-            'model_strong_state_dict': self.net.state_dict(),
-            'net_optimizer_state_dict': self.optimizer_net.state_dict(),
-            'exp_lr_scheduler_G_state_dict': self.exp_lr_scheduler_G.state_dict(),
-            'vqvae_state_dict': self.vqvae.state_dict() if self.vqvae is not None else None,
-            'vqvae_optimizer_state_dict': self.optimizer_vqvae.state_dict() if self.vqvae is not None else None,
-            'classifier_state_dict': self.classifier.state_dict() if self.classifier is not None else None,
-            'classifier_optimizer_state_dict': self.optimizer_classifier.state_dict() if self.classifier is not None else None,
+            'model_state_dict': self.net.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'exp_lr_scheduler_state_dict': self.exp_lr_scheduler.state_dict()
         }, os.path.join(self.checkpoint_dir, ckpt_name))
 
     def _update_metric(self):
         target = self.batch['label'].to(self.device).detach()
 
-        pred = self.net_pred.detach()
+        pred = self.pred.detach()
         pred = torch.argmax(pred,dim=1)
 
         current_score = self.running_metric.update_cm(pr=pred.cpu().numpy(), gt=target.cpu().numpy())
@@ -183,10 +179,10 @@ class Trainer():
 
         imps, est = self._timer_update()
         if np.mod(self.batch_id, 100) == 1:
-            message = 'Is_training: %s. [%d,%d][%d,%d], imps: %.2f, est: %.2fh, G_loss: %.5f, running_mf1: %.5f\n' %\
+            message = 'Is_training: %s. [%d,%d][%d,%d], imps: %.2f, est: %.2fh, loss: %.5f, running_mf1: %.5f\n' %\
                       (self.is_training, self.epoch_id, self.max_num_epochs-1, self.batch_id, m,
                      imps*self.batch_size, est,
-                     self.G_loss.item(), running_acc)
+                     self.loss.item(), running_acc)
             self.logger.write(message)
 
     def _collect_epoch_states(self):
@@ -230,19 +226,22 @@ class Trainer():
         self.running_metric.clear()
 
     def _forward_pass(self,batch):
-        if self.args.train == 'full':
+        if self.train == 'full':
+            vqvae_out = self.vqvae.encoder(batch['image'].to(self.device))
+            vqvae_out = self.vqvae.pre_vq_conv(vqvae_out)
+            self.pred = self.adversarial_walk(vqvae_out)
+            self.pred = self.vqvae.decoder(self.pred)
+            self.pred = self.net(self.pred)
+        elif self.train == 'vqvae':
             vqvae_out = self.vqvae(batch['image'].to(self.device))
-            self.net_pred = self.adversarial_walk(vqvae_out)
-            self.net_pred = self.net(self.net_pred)
-        elif self.args.train == 'vqvae':
+        elif self.train == 'classifier':
             vqvae_out = self.vqvae(batch['image'].to(self.device))
-        elif self.args.train == 'classifier':
-            vqvae_out = self.vqvae(batch['image'].to(self.device))
-            self.net_pred = self.classifier(vqvae_out)
+            vqvae_out = self.vqvae.pre_vq_conv(vqvae_out)  
+            self.pred = self.classifier(vqvae_out)
     
     def _backward(self):
         gt = self.batch['label'].to(self.device).long()
-        self.loss = self._pxl_loss(self.net_pred, gt)
+        self.loss = self._pxl_loss(self.pred, gt)
         self.loss.backward()
     
     def train_models(self):
@@ -254,22 +253,22 @@ class Trainer():
             ##########################################
             self._clear_cache()
             self.is_training = True
-            self.net_G.train()  # Set model to training mode
+            self.net.train()  # Set model to training mode
             # Iterate over data.
-            self.logger.write('lr: %0.7f\n' % self.optimizer_G.param_groups[0]['lr'])
+            self.logger.write('lr: %0.7f\n' % self.optimizer.param_groups[0]['lr'])
 
             for self.batch_id, batch in enumerate(self.dataloaders['train'], 0):
                 self._forward_pass(batch)
                 
-                # update G
+                # update net
                 self._backward()
                 if self.accumlation_steps > 0:
                     if (self.batch_id + 1) % self.accumlation_steps == 0:
-                        self.optimizer_G.step()
-                        self.optimizer_G.zero_grad()
+                        self.optimizer.step()
+                        self.optimizer.zero_grad()
                 else:
-                    self.optimizer_G.step()
-                    self.optimizer_G.zero_grad()
+                    self.optimizer.step()
+                    self.optimizer.zero_grad()
 
 
                 self._collect_running_batch_states()
@@ -288,7 +287,7 @@ class Trainer():
             self.logger.write('Begin evaluation...\n')
             self._clear_cache()
             self.is_training = False
-            self.net_G.eval()
+            self.net.eval()
 
             # Iterate over data.
             for self.batch_id, batch in enumerate(self.dataloaders['val'], 0):
