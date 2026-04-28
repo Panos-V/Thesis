@@ -33,7 +33,7 @@ if __name__ == '__main__':
 
     # data
     parser.add_argument('--num_workers', default=0, type=int)
-    parser.add_argument('--dataset', default='CDDataset', type=str)
+    parser.add_argument('--dataset', default='Fitzpatrick17k', type=str)
     parser.add_argument('--data_name', default='Fitzpatrick17k', type=str)
 
     parser.add_argument('--batch_size', default=32, type=int)

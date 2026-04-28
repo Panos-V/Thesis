@@ -172,7 +172,7 @@ class Trainer():
             if self.loss < self.best_loss:
                 self.best_loss = self.loss
                 self.best_epoch_id = self.epoch_id
-                self._save_checkpoint(ckpt_name='best_ckpt.pt')
+                self._save_checkpoint(ckpt_name=f"best_ckpt_{self.train}.pt")
                 self.logger.write("*"*10+'Best model updated!\n')
                 self.logger.write('\n')
         else:

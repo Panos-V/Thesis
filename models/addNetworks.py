@@ -3,6 +3,7 @@ import torch.functional as F
 import torch.nn as nn
 import torchvision
 from torchvision.models import resnet18, efficientnet_b0, densenet121
+import os
 
 from models import vq_vae, simple_classifier
 from torch.optim import lr_scheduler
@@ -12,16 +13,23 @@ def define_net(args):
     img_size = args.img_size
     in_channels = args.vqvae_embedding_dim * (img_size // 4) * (img_size // 4) # Calculate in_channels based on the output of the vqvae encoder
 
-    nets = vq_vae.model(args.vqvae_hiddens,
-                            args.vqvae_residual_hiddens,
-                            args.vqvae_residual_layers,
-                            args.vqvae_num_embeddings,
-                            args.vqvae_embedding_dim,
-                            args.vqvae_commitment_cost), simple_classifier.model(in_channels=in_channels,
-                                                                                  num_classes=args.n_class)
+    if args.train == 'simple_classifier':
+        if os.exists(f"checkpoints/{args.project_name}/best_ckpt_vqvae.pt"):
+            print("Loading pre-trained VQ-VAE encoder...")
+            vqvae_ckpt = torch.load(f"checkpoints/{args.project_name}/best_ckpt_vqvae.pt")
+            classifier_ckpt = simple_classifier.model(in_channels=in_channels, num_classes=args.n_class)
+        else:
+            raise FileNotFoundError("Pre-trained VQ-VAE encoder not found. Please train the VQ-VAE first.")
+    elif args.train == 'strong_classifier':
+        if os.exists(f"checkpoints/{args.project_name}/best_ckpt_simple_classifier.pt") and os.exists(f"checkpoints/{args.project_name}/best_ckpt_vqvae.pt"):
+            print("Loading models...")
+            vqvae_ckpt = torch.load(f"checkpoints/{args.project_name}/best_ckpt_vqvae.pt")
+            classifier_ckpt = torch.load(f"checkpoints/{args.project_name}/best_ckpt_simple_classifier.pt")
+        else:
+            raise FileNotFoundError("Pre-trained models not found. Please train the VQ-VAE and simple classifier first.")
 
 
-    return nets
+    return vqvae_ckpt,classifier_ckpt
 
 def define_strong_net(args):
     if args.strong_classifier == 'base_resnet18':
