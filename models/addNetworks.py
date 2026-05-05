@@ -13,20 +13,33 @@ def define_net(args):
     img_size = args.img_size
     in_channels = args.vqvae_embedding_dim * (img_size // 4) * (img_size // 4) # Calculate in_channels based on the output of the vqvae encoder
 
-    if args.train == 'simple_classifier':
-        if os.exists(f"checkpoints/{args.project_name}/best_ckpt_vqvae.pt"):
+    vqvae_ckpt = vq_vae.model(num_hiddens=args.vqvae_hiddens,
+                                num_residual_layers=args.vqvae_residual_layers,
+                                num_residual_hiddens=args.vqvae_residual_hiddens,
+                                embedding_dim=args.vqvae_embedding_dim,
+                                num_embeddings=args.vqvae_num_embeddings,
+                                commitment_cost=args.vqvae_commitment_cost)
+
+    if args.train == 'classifier':
+        if os.path.exists(f"{args.checkpoint_dir}/best_ckpt_vqvae.pt"):
             print("Loading pre-trained VQ-VAE encoder...")
-            vqvae_ckpt = torch.load(f"checkpoints/{args.project_name}/best_ckpt_vqvae.pt")
+            checkpoint = torch.load(f"{args.checkpoint_dir}/best_ckpt_vqvae.pt")
+            vqvae_ckpt.load_state_dict(checkpoint['vqvae_state_dict'])
             classifier_ckpt = simple_classifier.model(in_channels=in_channels, num_classes=args.n_class)
         else:
             raise FileNotFoundError("Pre-trained VQ-VAE encoder not found. Please train the VQ-VAE first.")
     elif args.train == 'strong_classifier':
-        if os.exists(f"checkpoints/{args.project_name}/best_ckpt_simple_classifier.pt") and os.exists(f"checkpoints/{args.project_name}/best_ckpt_vqvae.pt"):
+        if os.path.exists(f"{args.checkpoint_dir}/best_ckpt_simple_classifier.pt") and os.path.exists(f"{args.checkpoint_dir}/best_ckpt_vqvae.pt"):
             print("Loading models...")
-            vqvae_ckpt = torch.load(f"checkpoints/{args.project_name}/best_ckpt_vqvae.pt")
-            classifier_ckpt = torch.load(f"checkpoints/{args.project_name}/best_ckpt_simple_classifier.pt")
+            checkpoint_vq = torch.load(f"{args.checkpoint_dir}/best_ckpt_vqvae.pt")
+            checkpoint_class = torch.load(f"{args.checkpoint_dir}/best_ckpt_simple_classifier.pt")
+            vqvae_ckpt.load_state_dict(checkpoint_vq['vqvae_state_dict'])
+            classifier_ckpt.load_state_dict(checkpoint_class['classifier_state_dict'])
         else:
             raise FileNotFoundError("Pre-trained models not found. Please train the VQ-VAE and simple classifier first.")
+    else:
+
+        classifier_ckpt = None
 
 
     return vqvae_ckpt,classifier_ckpt

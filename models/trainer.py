@@ -25,6 +25,7 @@ class Trainer():
         self.accumlation_steps = args.accumulation_steps
         # define network
         self.vqvae,self.classifier = define_net(args=args)
+        print(self.vqvae)
         self.net = define_strong_net(args=args)
         self.train = args.train
         self.device = torch.device("cuda:%s" % args.gpu_ids[0] if torch.cuda.is_available() and len(args.gpu_ids)>0
@@ -168,20 +169,12 @@ class Trainer():
         self.logger.write('\n')
 
         # update the best model (based on eval acc)
-        if self.train == 'vqvae':
-            if self.loss < self.best_loss:
-                self.best_loss = self.loss
-                self.best_epoch_id = self.epoch_id
-                self._save_checkpoint(ckpt_name=f"best_ckpt_{self.train}.pt")
-                self.logger.write("*"*10+'Best model updated!\n')
-                self.logger.write('\n')
-        else:
-            if self.epoch_acc > self.best_val_acc:
-                self.best_val_acc = self.epoch_acc
-                self.best_epoch_id = self.epoch_id
-                self._save_checkpoint(ckpt_name='best_ckpt.pt')
-                self.logger.write('*' * 10 + 'Best model updated!\n')
-                self.logger.write('\n')
+        if self.loss < self.best_loss:
+            self.best_loss = self.loss
+            self.best_epoch_id = self.epoch_id
+            self._save_checkpoint(ckpt_name=f"best_ckpt_{self.train}.pt")
+            self.logger.write("*"*10+'Best model updated!\n')
+            self.logger.write('\n')
 
     def _timer_update(self):
         self.global_step = (self.epoch_id-self.epoch_to_start) * self.steps_per_epoch + self.batch_id
@@ -358,7 +351,7 @@ class Trainer():
         self.loss.backward()
     
     def train_models(self):
-        self._load_checkpoint()
+        self._load_checkpoint(ckpt_name=f"{self.train}_last_ckpt.pt")
 
         for self.epoch_id in range(self.epoch_to_start, self.max_num_epochs):
 
