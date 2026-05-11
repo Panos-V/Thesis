@@ -91,9 +91,9 @@ class Trainer():
         self.vis_dir = args.vis_dir
 
         # define the loss functions
-        if self.argloss == 'ce':
+        if self.train == 'strong_classifier' or self.train == 'classifier':
             self._pxl_loss = nn.CrossEntropyLoss()
-        elif self.argloss == 'mse':
+        elif self.argloss == 'vqvae':
             self._pxl_loss = nn.MSELoss()
         else:
             raise NotImplemented(self.argloss)
@@ -333,18 +333,18 @@ class Trainer():
         elif self.train == 'vqvae':
             self.vq_loss, self.net_pred, _ = self.vqvae(batch['image'].to(self.device))
         elif self.train == 'classifier':
-            vqvae_out = self.vqvae(batch['image'].to(self.device))
+            vqvae_out = self.vqvae.encoder(batch['image'].to(self.device))
             vqvae_out = self.vqvae.pre_vq_conv(vqvae_out)
             self.net_pred = self.classifier(vqvae_out)
 
 
     def _backward(self):
 
-        if self.argloss == 'mse':
+        if self.train == 'vqvae':
             gt = self.batch['image'].to(self.device).float()
             self.loss = self._pxl_loss(self.net_pred.float(), gt) + self.vq_loss
             print(f"recon_loss={self.loss:.4f}, vq_loss={self.vq_loss:.4f}")
-        elif self.argloss == 'ce':
+        elif self.train == 'strong_classifier' or self.train == 'classifier':
             gt = self.batch['label'].to(self.device).long()
             self.loss = self._pxl_loss(self.net_pred.float(), gt)
         

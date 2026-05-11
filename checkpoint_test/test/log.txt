@@ -2666,3 +2666,124 @@ gpu_ids: -1 project_name: test checkpoint_root: checkpoint_test num_workers: 0 d
 gpu_ids: -1 project_name: test checkpoint_root: checkpoint_test num_workers: 0 dataset: Fitzpatrick17k data_name: test batch_size: 16 split: train split_val: val img_size: 32 n_class: 2 train: classifier strong_classifier: base_resnet18 loss: mse vqvae_hiddens: 128 vqvae_residual_hiddens: 128 vqvae_residual_layers: 2 vqvae_num_embeddings: 1024 vqvae_embedding_dim: 64 vqvae_commitment_cost: 0.25 optimizer: sgd lr: 0.0001 max_epochs: 200 lr_policy: linear lr_decay_iters: 100 accumulation_steps: 0 vis_dir: vis/test checkpoint_dir: checkpoint_test/test lr: 0.0001000
 ================ (Thu Apr 30 12:10:30 2026) ================
 gpu_ids: -1 project_name: test checkpoint_root: checkpoint_test num_workers: 0 dataset: Fitzpatrick17k data_name: test batch_size: 16 split: train split_val: val img_size: 32 n_class: 2 train: classifier strong_classifier: base_resnet18 loss: mse vqvae_hiddens: 128 vqvae_residual_hiddens: 128 vqvae_residual_layers: 2 vqvae_num_embeddings: 1024 vqvae_embedding_dim: 64 vqvae_commitment_cost: 0.25 optimizer: sgd lr: 0.0001 max_epochs: 200 lr_policy: linear lr_decay_iters: 100 accumulation_steps: 0 vis_dir: vis/test checkpoint_dir: checkpoint_test/test lr: 0.0001000
+================ (Tue May  5 13:40:42 2026) ================
+gpu_ids: -1 project_name: test checkpoint_root: checkpoint_test num_workers: 0 dataset: Fitzpatrick17k data_name: test batch_size: 16 split: train split_val: val img_size: 32 n_class: 2 train: classifier strong_classifier: base_resnet18 loss: mse vqvae_hiddens: 128 vqvae_residual_hiddens: 128 vqvae_residual_layers: 2 vqvae_num_embeddings: 1024 vqvae_embedding_dim: 64 vqvae_commitment_cost: 0.25 optimizer: sgd lr: 0.0001 max_epochs: 200 lr_policy: linear lr_decay_iters: 100 accumulation_steps: 0 vis_dir: vis/test checkpoint_dir: checkpoint_test/test lr: 0.0001000
+================ (Tue May  5 13:42:23 2026) ================
+gpu_ids: -1 project_name: test checkpoint_root: checkpoint_test num_workers: 0 dataset: Fitzpatrick17k data_name: test batch_size: 16 split: train split_val: val img_size: 32 n_class: 2 train: classifier strong_classifier: base_resnet18 loss: mse vqvae_hiddens: 128 vqvae_residual_hiddens: 128 vqvae_residual_layers: 2 vqvae_num_embeddings: 1024 vqvae_embedding_dim: 64 vqvae_commitment_cost: 0.25 optimizer: sgd lr: 0.0001 max_epochs: 200 lr_policy: linear lr_decay_iters: 100 accumulation_steps: 0 vis_dir: vis/test checkpoint_dir: checkpoint_test/test lr: 0.0001000
+================ (Tue May  5 13:53:01 2026) ================
+gpu_ids: -1 project_name: test checkpoint_root: checkpoint_test num_workers: 0 dataset: Fitzpatrick17k data_name: test batch_size: 16 split: train split_val: val img_size: 32 n_class: 2 train: classifier strong_classifier: base_resnet18 loss: mse vqvae_hiddens: 128 vqvae_residual_hiddens: 128 vqvae_residual_layers: 2 vqvae_num_embeddings: 1024 vqvae_embedding_dim: 64 vqvae_commitment_cost: 0.25 optimizer: sgd lr: 0.0001 max_epochs: 200 lr_policy: linear lr_decay_iters: 100 accumulation_steps: 0 vis_dir: vis/test checkpoint_dir: checkpoint_test/test lr: 0.0001000
+================ (Tue May  5 13:53:31 2026) ================
+gpu_ids: -1 project_name: test checkpoint_root: checkpoint_test num_workers: 0 dataset: Fitzpatrick17k data_name: test batch_size: 16 split: train split_val: val img_size: 32 n_class: 2 train: classifier strong_classifier: base_resnet18 loss: mse vqvae_hiddens: 128 vqvae_residual_hiddens: 128 vqvae_residual_layers: 2 vqvae_num_embeddings: 1024 vqvae_embedding_dim: 64 vqvae_commitment_cost: 0.25 optimizer: sgd lr: 0.0001 max_epochs: 200 lr_policy: linear lr_decay_iters: 100 accumulation_steps: 0 vis_dir: vis/test checkpoint_dir: checkpoint_test/test lr: 0.0001000
+================ (Tue May  5 13:54:04 2026) ================
+gpu_ids: -1 project_name: test checkpoint_root: checkpoint_test num_workers: 0 dataset: Fitzpatrick17k data_name: test batch_size: 16 split: train split_val: val img_size: 32 n_class: 2 train: classifier strong_classifier: base_resnet18 loss: mse vqvae_hiddens: 128 vqvae_residual_hiddens: 128 vqvae_residual_layers: 2 vqvae_num_embeddings: 1024 vqvae_embedding_dim: 64 vqvae_commitment_cost: 0.25 optimizer: sgd lr: 0.0001 max_epochs: 200 lr_policy: linear lr_decay_iters: 100 accumulation_steps: 0 vis_dir: vis/test checkpoint_dir: checkpoint_test/test lr: 0.0001000
+================ (Tue May  5 13:55:10 2026) ================
+gpu_ids: -1 project_name: test checkpoint_root: checkpoint_test num_workers: 0 dataset: Fitzpatrick17k data_name: test batch_size: 16 split: train split_val: val img_size: 32 n_class: 2 train: classifier strong_classifier: base_resnet18 loss: mse vqvae_hiddens: 128 vqvae_residual_hiddens: 128 vqvae_residual_layers: 2 vqvae_num_embeddings: 1024 vqvae_embedding_dim: 64 vqvae_commitment_cost: 0.25 optimizer: sgd lr: 0.0001 max_epochs: 200 lr_policy: linear lr_decay_iters: 100 accumulation_steps: 0 vis_dir: vis/test checkpoint_dir: checkpoint_test/test lr: 0.0001000
+================ (Tue May  5 14:05:28 2026) ================
+gpu_ids: -1 project_name: test checkpoint_root: checkpoint_test num_workers: 0 dataset: Fitzpatrick17k data_name: test batch_size: 16 split: train split_val: val img_size: 32 n_class: 2 train: classifier strong_classifier: base_resnet18 loss: mse vqvae_hiddens: 128 vqvae_residual_hiddens: 128 vqvae_residual_layers: 2 vqvae_num_embeddings: 1024 vqvae_embedding_dim: 64 vqvae_commitment_cost: 0.25 optimizer: sgd lr: 0.0001 max_epochs: 200 lr_policy: linear lr_decay_iters: 100 accumulation_steps: 0 vis_dir: vis/test checkpoint_dir: checkpoint_test/test lr: 0.0001000
+================ (Tue May  5 14:07:22 2026) ================
+gpu_ids: -1 project_name: test checkpoint_root: checkpoint_test num_workers: 0 dataset: Fitzpatrick17k data_name: test batch_size: 16 split: train split_val: val img_size: 32 n_class: 2 train: classifier strong_classifier: base_resnet18 loss: mse vqvae_hiddens: 128 vqvae_residual_hiddens: 128 vqvae_residual_layers: 2 vqvae_num_embeddings: 1024 vqvae_embedding_dim: 64 vqvae_commitment_cost: 0.25 optimizer: sgd lr: 0.0001 max_epochs: 200 lr_policy: linear lr_decay_iters: 100 accumulation_steps: 0 vis_dir: vis/test checkpoint_dir: checkpoint_test/test lr: 0.0001000
+================ (Tue May  5 14:10:43 2026) ================
+gpu_ids: -1 project_name: test checkpoint_root: checkpoint_test num_workers: 0 dataset: Fitzpatrick17k data_name: test batch_size: 16 split: train split_val: val img_size: 32 n_class: 2 train: classifier strong_classifier: base_resnet18 loss: mse vqvae_hiddens: 128 vqvae_residual_hiddens: 128 vqvae_residual_layers: 2 vqvae_num_embeddings: 1024 vqvae_embedding_dim: 64 vqvae_commitment_cost: 0.25 optimizer: sgd lr: 0.0001 max_epochs: 200 lr_policy: linear lr_decay_iters: 100 accumulation_steps: 0 vis_dir: vis/test checkpoint_dir: checkpoint_test/test lr: 0.0001000
+================ (Tue May  5 14:11:31 2026) ================
+gpu_ids: -1 project_name: test checkpoint_root: checkpoint_test num_workers: 0 dataset: Fitzpatrick17k data_name: test batch_size: 16 split: train split_val: val img_size: 32 n_class: 2 train: classifier strong_classifier: base_resnet18 loss: mse vqvae_hiddens: 128 vqvae_residual_hiddens: 128 vqvae_residual_layers: 2 vqvae_num_embeddings: 1024 vqvae_embedding_dim: 64 vqvae_commitment_cost: 0.25 optimizer: sgd lr: 0.0001 max_epochs: 200 lr_policy: linear lr_decay_iters: 100 accumulation_steps: 0 vis_dir: vis/test checkpoint_dir: checkpoint_test/test lr: 0.0001000
+================ (Tue May  5 14:12:34 2026) ================
+gpu_ids: -1 project_name: test checkpoint_root: checkpoint_test num_workers: 0 dataset: Fitzpatrick17k data_name: test batch_size: 16 split: train split_val: val img_size: 32 n_class: 2 train: classifier strong_classifier: base_resnet18 loss: mse vqvae_hiddens: 128 vqvae_residual_hiddens: 128 vqvae_residual_layers: 2 vqvae_num_embeddings: 1024 vqvae_embedding_dim: 64 vqvae_commitment_cost: 0.25 optimizer: sgd lr: 0.0001 max_epochs: 200 lr_policy: linear lr_decay_iters: 100 accumulation_steps: 0 vis_dir: vis/test checkpoint_dir: checkpoint_test/test lr: 0.0001000
+================ (Tue May  5 14:12:51 2026) ================
+gpu_ids: -1 project_name: test checkpoint_root: checkpoint_test num_workers: 0 dataset: Fitzpatrick17k data_name: test batch_size: 16 split: train split_val: val img_size: 32 n_class: 2 train: classifier strong_classifier: base_resnet18 loss: mse vqvae_hiddens: 128 vqvae_residual_hiddens: 128 vqvae_residual_layers: 2 vqvae_num_embeddings: 1024 vqvae_embedding_dim: 64 vqvae_commitment_cost: 0.25 optimizer: sgd lr: 0.0001 max_epochs: 200 lr_policy: linear lr_decay_iters: 100 accumulation_steps: 0 vis_dir: vis/test checkpoint_dir: checkpoint_test/test lr: 0.0001000
+================ (Tue May  5 14:13:11 2026) ================
+gpu_ids: -1 project_name: test checkpoint_root: checkpoint_test num_workers: 0 dataset: Fitzpatrick17k data_name: test batch_size: 16 split: train split_val: val img_size: 32 n_class: 2 train: classifier strong_classifier: base_resnet18 loss: mse vqvae_hiddens: 128 vqvae_residual_hiddens: 128 vqvae_residual_layers: 2 vqvae_num_embeddings: 1024 vqvae_embedding_dim: 64 vqvae_commitment_cost: 0.25 optimizer: sgd lr: 0.0001 max_epochs: 200 lr_policy: linear lr_decay_iters: 100 accumulation_steps: 0 vis_dir: vis/test checkpoint_dir: checkpoint_test/test lr: 0.0001000
+================ (Tue May  5 14:13:25 2026) ================
+gpu_ids: -1 project_name: test checkpoint_root: checkpoint_test num_workers: 0 dataset: Fitzpatrick17k data_name: test batch_size: 16 split: train split_val: val img_size: 32 n_class: 2 train: classifier strong_classifier: base_resnet18 loss: mse vqvae_hiddens: 128 vqvae_residual_hiddens: 128 vqvae_residual_layers: 2 vqvae_num_embeddings: 1024 vqvae_embedding_dim: 64 vqvae_commitment_cost: 0.25 optimizer: sgd lr: 0.0001 max_epochs: 200 lr_policy: linear lr_decay_iters: 100 accumulation_steps: 0 vis_dir: vis/test checkpoint_dir: checkpoint_test/test lr: 0.0001000
+Begin evaluation...
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 0)
+
+**********Best model updated!
+
+lr: 0.0000995
+Begin evaluation...
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 0)
+
+lr: 0.0000990
+Begin evaluation...
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 0)
+
+**********Best model updated!
+
+lr: 0.0000985
+Begin evaluation...
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 2)
+
+lr: 0.0000980
+Begin evaluation...
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 2)
+
+lr: 0.0000975
+Begin evaluation...
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 2)
+
+lr: 0.0000970
+Begin evaluation...
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 2)
+
+lr: 0.0000965
+Begin evaluation...
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 2)
+
+================ (Tue May  5 14:13:38 2026) ================
+gpu_ids: -1 project_name: test checkpoint_root: checkpoint_test num_workers: 0 dataset: Fitzpatrick17k data_name: test batch_size: 16 split: train split_val: val img_size: 32 n_class: 2 train: classifier strong_classifier: base_resnet18 loss: mse vqvae_hiddens: 128 vqvae_residual_hiddens: 128 vqvae_residual_layers: 2 vqvae_num_embeddings: 1024 vqvae_embedding_dim: 64 vqvae_commitment_cost: 0.25 optimizer: sgd lr: 0.0001 max_epochs: 200 lr_policy: linear lr_decay_iters: 100 accumulation_steps: 0 vis_dir: vis/test checkpoint_dir: checkpoint_test/test lr: 0.0001000
+Begin evaluation...
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 0)
+
+**********Best model updated!
+
+lr: 0.0000995
+Begin evaluation...
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 0)
+
+**********Best model updated!
+
+lr: 0.0000990
+Begin evaluation...
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 1)
+
+lr: 0.0000985
+Begin evaluation...
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 1)
+
+lr: 0.0000980
+Begin evaluation...
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 1)
+
+lr: 0.0000975
+Begin evaluation...
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 1)
+
+lr: 0.0000970
+Begin evaluation...
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 1)
+
+lr: 0.0000965
+Begin evaluation...
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 1)
+
+lr: 0.0000960
+Begin evaluation...
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 1)
+
+lr: 0.0000955
+Begin evaluation...
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 1)
+
+lr: 0.0000950
+Begin evaluation...
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 1)
+
+lr: 0.0000945
+Begin evaluation...
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 1)
+
+lr: 0.0000940
+Begin evaluation...
+Lastest model updated. Epoch_acc=0.0000, Historical_best_acc=0.0000 (at epoch 1)
+
+lr: 0.0000935
