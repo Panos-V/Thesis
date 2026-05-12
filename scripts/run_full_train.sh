@@ -8,9 +8,9 @@ batch_size=16
 lr=1e-4
 max_epochs=200
 
-project_name=test
-data_name=test
-train=classifier
+project_name=First_full_train
+data_name=Fitzpatrick17k
+train=vqvae
 
 python new_main.py --gpu_ids ${gpus} --checkpoint_root ${checkpoint_root} \
     --img_size ${img_size} --batch_size ${batch_size} --lr ${lr} \
