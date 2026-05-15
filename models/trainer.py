@@ -25,7 +25,6 @@ class Trainer():
         self.accumlation_steps = args.accumulation_steps
         # define network
         self.vqvae,self.classifier = define_net(args=args)
-        print(self.vqvae)
         self.net = define_strong_net(args=args)
         self.train = args.train
         self.device = torch.device("cuda:%s" % args.gpu_ids[0] if torch.cuda.is_available() and len(args.gpu_ids)>0
@@ -93,10 +92,10 @@ class Trainer():
         # define the loss functions
         if self.train == 'strong_classifier' or self.train == 'classifier':
             self._pxl_loss = nn.CrossEntropyLoss()
-        elif self.argloss == 'vqvae':
+        elif self.train == 'vqvae':
             self._pxl_loss = nn.MSELoss()
         else:
-            raise NotImplemented(self.argloss)
+            raise NotImplemented(self.train)
 
         self.VAL_ACC = np.array([], np.float32)
         if os.path.exists(os.path.join(self.checkpoint_dir, 'val_acc.npy')):
