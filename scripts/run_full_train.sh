@@ -1,6 +1,6 @@
 #!/bin/bash
 
-gpus=-1
+gpus=0
 checkpoint_root=checkpoint_test
 
 img_size=32
