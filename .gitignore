@@ -1,7 +1,7 @@
 # Data files
 archive
 augmented
-coloredmnist_data/
+coloredmnist_data
 data
 checkpoint*
 
