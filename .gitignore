@@ -2,7 +2,6 @@
 archive
 augmented
 coloredmnist_data/
-raw_data
 data
 checkpoint*
 
