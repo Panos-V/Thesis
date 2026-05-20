@@ -30,7 +30,7 @@ class Trainer():
         self.device = torch.device("cuda:%s" % args.gpu_ids[0] if torch.cuda.is_available() and len(args.gpu_ids)>0
                                    else "cpu")
 
-        self.net.to(self.device)
+
 
         # Learning rate and Beta1 for Adam optimizers
         self.lr = args.lr
@@ -41,6 +41,8 @@ class Trainer():
             self.net = self.vqvae
         elif args.train == 'classifier':
             self.net = self.classifier
+
+        self.net.to(self.device)
 
         # define optimizers
         if args.optimizer == 'sgd':
@@ -156,7 +158,7 @@ class Trainer():
     def _update_checkpoints(self):
 
         # save current model
-        self._save_checkpoint(ckpt_name='last_ckpt.pt')
+        self._save_checkpoint(ckpt_name=f"{self.train}_last_ckpt.pt")
 
         if self.train == 'vqvae':
             message = 'Latest model updated. Epoch loss=%.4f, Best loss:=%.4f (at epoch %d)\n' \
@@ -267,14 +269,13 @@ class Trainer():
                 message = 'Is_training: %s. [%d,%d][%d,%d], imps: %.2f, est: %.5fh, VQ_loss: %.5f\n' %\
                         (self.is_training, self.epoch_id, self.max_num_epochs-1, self.batch_id, len(self.dataloaders['train']),
                         imps*self.batch_size, est,
-                        self.vq_loss.item())
+                        self.loss.item())
                 self.logger.write(message)
         
         if np.mod(self.batch_id, 500) == 1:
             vis_input = utils.make_numpy_grid(self.batch['image'])
 
-            vis_pred = utils.make_numpy_grid(self._visualize_pred())
-
+            vis_pred = utils.make_numpy_grid(self.net_pred)
             vis = np.concatenate([vis_input, vis_pred], axis=0)
             vis = np.clip(vis, a_min=0.0, a_max=1.0)
             file_name = os.path.join(
@@ -291,7 +292,7 @@ class Trainer():
             message = ''
         elif self.train == 'vqvae':
             self.logger.write('Is_training: %s. Epoch %d / %d, epoch_VQ_loss= %.5f\n' %
-                (self.is_training, self.epoch_id, self.max_num_epochs-1, self.vq_loss.item()))
+                (self.is_training, self.epoch_id, self.max_num_epochs-1, self.loss.item()))
 
     def adversarial_walk(self,vqvae_out,steps=4,a=0.1):
         h_delta = vqvae_out.clone().detach().requires_grad_(True)
@@ -342,7 +343,6 @@ class Trainer():
         if self.train == 'vqvae':
             gt = self.batch['image'].to(self.device).float()
             self.loss = self._pxl_loss(self.net_pred.float(), gt) + self.vq_loss
-            print(f"recon_loss={self.loss:.4f}, vq_loss={self.vq_loss:.4f}")
         elif self.train == 'strong_classifier' or self.train == 'classifier':
             gt = self.batch['label'].to(self.device).long()
             self.loss = self._pxl_loss(self.net_pred.float(), gt)
@@ -359,11 +359,11 @@ class Trainer():
             self._clear_cache()
             self.is_training = True
             self.net.train()  # Set model to training mode
+            self.net.to(self.device)
             # Iterate over data.
             self.logger.write('lr: %0.7f\n' % self.optimizer.param_groups[0]['lr'])
 
             for self.batch_id, batch in enumerate(self.dataloaders['train'], 0):
-
                 self._forward_pass(batch)               
                 # update G
                 self._backward()

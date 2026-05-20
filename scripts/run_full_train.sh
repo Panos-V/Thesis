@@ -4,8 +4,8 @@ gpus=0
 checkpoint_root=checkpoint_test
 
 img_size=32
-batch_size=16
-lr=1e-4
+batch_size=128
+lr=1e-2
 max_epochs=200
 
 project_name=First_full_train
