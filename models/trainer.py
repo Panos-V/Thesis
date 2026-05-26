@@ -17,6 +17,9 @@ class Trainer():
     def __init__(self,args,dataloaders):
 
         self.dataloaders = dataloaders
+        self.args = args
+        self.lr = args.lr
+        self.reset_lr = args.reset_lr
         self.dataset = args.dataset
         self.data_name = args.data_name
         self.n_class = args.n_class
@@ -50,7 +53,7 @@ class Trainer():
                                           lr=self.lr, momentum=0.9,
                                             weight_decay=5e-4)
         elif args.optimizer == 'adam':
-            self.optimizer = optim.Adam(self.net.parameters(),
+            self.optimizer = optim.AdamW(self.net.parameters(),
                                            lr=self.lr)
 
 
@@ -95,7 +98,10 @@ class Trainer():
         if self.train == 'strong_classifier' or self.train == 'classifier':
             self._pxl_loss = nn.CrossEntropyLoss()
         elif self.train == 'vqvae':
-            self._pxl_loss = nn.MSELoss()
+            if args.vqvae_loss == 'mse':
+                self._pxl_loss = nn.MSELoss()
+            elif args.vqvae_loss == 'l1':
+                self._pxl_loss = nn.L1Loss()
         else:
             raise NotImplemented(self.train)
 
@@ -138,6 +144,11 @@ class Trainer():
             self.optimizer.load_state_dict(checkpoint['net_optimizer_state_dict'])
             self.exp_lr_scheduler.load_state_dict(
                 checkpoint['exp_lr_scheduler_G_state_dict'])
+            # reset lr to default
+            if self.reset_lr:
+                for pg in self.optimizer.param_groups:
+                    pg['lr'] = self.lr
+                self.exp_lr_scheduler = get_scheduler(self.optimizer, self.args)
 
             self.net.to(self.device)
 
@@ -165,7 +176,7 @@ class Trainer():
                 % (self.loss,self.best_loss,self.best_epoch_id)
         else:
             message = 'Lastest model updated. Epoch_acc=%.4f, Historical_best_acc=%.4f (at epoch %d)\n' \
-              % (self.epoch_acc, self.best_val_acc, self.best_epoch_id)
+              % (self.epoch_acc.detach().cpu().numpy(), self.best_val_acc, self.best_epoch_id)
         self.logger.write(message)
         self.logger.write('\n')
 
@@ -266,16 +277,16 @@ class Trainer():
         elif self.train == 'vqvae':
             imps, est = self._timer_update()
             if np.mod(self.batch_id, 100) == 1:
-                message = 'Is_training: %s. [%d,%d][%d,%d], imps: %.2f, est: %.5fh, VQ_loss: %.5f\n' %\
+                message = 'Is_training: %s. [%d,%d][%d,%d], imps: %.2f, est: %.5fh, VQvae_loss: %.5f, Vq_loss: %.5f, Perplexity: %.5f\n' %\
                         (self.is_training, self.epoch_id, self.max_num_epochs-1, self.batch_id, len(self.dataloaders['train']),
                         imps*self.batch_size, est,
-                        self.loss.item())
+                        self.loss.item(), self.vq_loss, self.perplexity)
                 self.logger.write(message)
         
         if np.mod(self.batch_id, 500) == 1:
-            vis_input = utils.make_numpy_grid(self.batch['image'])
+            vis_input = utils.make_numpy_grid(self.batch['image'][:16])
 
-            vis_pred = utils.make_numpy_grid(self.net_pred)
+            vis_pred = utils.make_numpy_grid(self.net_pred[:16])
             vis = np.concatenate([vis_input, vis_pred], axis=0)
             vis = np.clip(vis, a_min=0.0, a_max=1.0)
             file_name = os.path.join(
@@ -331,7 +342,8 @@ class Trainer():
             self.net_pred = self.adversarial_walk(vqvae_out)
             self.net_pred = self.net(self.net_pred)
         elif self.train == 'vqvae':
-            self.vq_loss, self.net_pred, _ = self.vqvae(batch['image'].to(self.device))
+            self.vq_loss, self.net_pred, self.perplexity = self.vqvae(batch['image'].to(self.device))
+
         elif self.train == 'classifier':
             vqvae_out = self.vqvae.encoder(batch['image'].to(self.device))
             vqvae_out = self.vqvae.pre_vq_conv(vqvae_out)
@@ -342,7 +354,7 @@ class Trainer():
 
         if self.train == 'vqvae':
             gt = self.batch['image'].to(self.device).float()
-            self.loss = self._pxl_loss(self.net_pred.float(), gt) + self.vq_loss
+            self.loss = self._pxl_loss(self.net_pred.float(), gt)  + self.vq_loss
         elif self.train == 'strong_classifier' or self.train == 'classifier':
             gt = self.batch['label'].to(self.device).long()
             self.loss = self._pxl_loss(self.net_pred.float(), gt)

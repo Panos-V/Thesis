@@ -57,10 +57,12 @@ if __name__ == '__main__':
     parser.add_argument('--vqvae_num_embeddings', default=1024, type=int, help='number of embeddings for vqvae')
     parser.add_argument('--vqvae_embedding_dim', default=64, type=int, help='embedding dimension for vqvae')
     parser.add_argument('--vqvae_commitment_cost', default=0.25, type=float, help='commitment cost for vqvae')
+    parser.add_argument('--vqvae_loss', default='mse', type=str, help='loss for vqvae, mse or l1')
 
     # optimizer
     parser.add_argument('--optimizer', default='sgd', type=str)
     parser.add_argument('--lr', default=0.001, type=float)
+    parser.add_argument('--reset_lr', default=0, type=int, help='reset learning rate to default value before training')
     parser.add_argument('--max_epochs', default=100, type=int)
     parser.add_argument('--lr_policy', default='linear', type=str,
                         help='linear | step')
@@ -71,6 +73,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     print(args.gpu_ids)
+
+    if args.reset_lr:
+        default_lr = parser.get_default('lr')
+        args.lr = default_lr
 
     #  checkpoints dir
     args.checkpoint_dir = os.path.join(args.checkpoint_root, args.project_name)
