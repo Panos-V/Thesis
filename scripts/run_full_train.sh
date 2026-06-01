@@ -4,10 +4,10 @@ gpus=0
 checkpoint_root=checkpoint_test
 
 img_size=224
-batch_size=128
+batch_size=32
 lr=1e-3
 lr_policy=linear
-max_epochs=2000
+max_epochs=100
 optimizer=adam
 reset_lr=0
 
@@ -22,7 +22,7 @@ vqvae_loss=mse
 num_workers=8
 project_name=commit015_linear
 data_name=Fitzpatrick17k
-train=vqvae
+train=strong_classifier
 
 python new_main.py --gpu_ids ${gpus} --checkpoint_root ${checkpoint_root} \
     --img_size ${img_size} --batch_size ${batch_size} --lr ${lr} \

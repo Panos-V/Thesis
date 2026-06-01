@@ -44,6 +44,7 @@ class Trainer():
             self.net = self.vqvae
         elif args.train == 'classifier':
             self.net = self.classifier
+            self.vqvae.to(self.device)
 
         self.net.to(self.device)
 
@@ -176,7 +177,7 @@ class Trainer():
                 % (self.loss,self.best_loss,self.best_epoch_id)
         else:
             message = 'Lastest model updated. Epoch_acc=%.4f, Historical_best_acc=%.4f (at epoch %d)\n' \
-              % (self.epoch_acc.detach().cpu().numpy(), self.best_val_acc, self.best_epoch_id)
+              % (self.epoch_acc, self.best_val_acc, self.best_epoch_id)
         self.logger.write(message)
         self.logger.write('\n')
 
@@ -216,7 +217,7 @@ class Trainer():
     def _update_metric(self):
         target = self.batch['label'].to(self.device).detach()
 
-        pred = self.pred.detach()
+        pred = self.net_pred.detach()
         pred = torch.argmax(pred,dim=1)
 
         current_score = self.running_metric.update_cm(pr=pred.cpu().numpy(), gt=target.cpu().numpy())
@@ -258,9 +259,10 @@ class Trainer():
 
     def _collect_running_batch_states(self):
         
-        if self.train == 'strong_classifier':
+        if not self.train == 'vqvae':
             running_acc = self._update_metric()
-            running_fairness = self._update_fairness()
+            if self.train == 'strong_classifier':
+                running_fairness = self._update_fairness()
 
             m = len(self.dataloaders['train'])
             if self.is_training is False:
@@ -268,11 +270,17 @@ class Trainer():
 
             imps, est = self._timer_update()
             if np.mod(self.batch_id, 100) == 1:
-                message = 'Is_training: %s. [%d,%d][%d,%d], imps: %.2f, est: %.2fh, G_loss: %.5f, running_mf1: %.5f\n, running_EO: %.5f,' \
-                ' running_DI: %.5f, running_AP: %.5f' %\
-                        (self.is_training, self.epoch_id, self.max_num_epochs-1, self.batch_id, m,
-                        imps*self.batch_size, est,
-                        self.loss.item(), running_acc, running_fairness['EO'], running_fairness['DI'], running_fairness['AP'])
+                if self.train == 'strong_classifier':
+                    message = 'Is_training: %s. [%d,%d][%d,%d], imps: %.2f, est: %.2fh, G_loss: %.5f, running_mf1: %.5f\n, running_EO: %.5f,' \
+                    ' running_DI: %.5f, running_AP: %.5f' %\
+                            (self.is_training, self.epoch_id, self.max_num_epochs-1, self.batch_id, m,
+                            imps*self.batch_size, est,
+                            self.loss.item(), running_acc, running_fairness['EO'], running_fairness['DI'], running_fairness['AP'])
+                else:
+                    message = 'Is_training: %s. [%d,%d][%d,%d], imps: %.2f, est: %.2fh, G_loss: %.5f, running_mf1: %.5f\n' %\
+                            (self.is_training, self.epoch_id, self.max_num_epochs-1, self.batch_id, m,
+                            imps*self.batch_size, est,
+                            self.loss.item(), running_acc)
                 self.logger.write(message)
         elif self.train == 'vqvae':
             imps, est = self._timer_update()
@@ -282,7 +290,8 @@ class Trainer():
                         imps*self.batch_size, est,
                         self.loss.item(), self.vq_loss, self.perplexity)
                 self.logger.write(message)
-        
+        if self.train == 'classifier':
+            return
         if np.mod(self.batch_id, 500) == 1:
             vis_input = utils.make_numpy_grid(self.batch['image'][:16])
 
@@ -295,7 +304,7 @@ class Trainer():
             plt.imsave(file_name, vis)
 
     def _collect_epoch_states(self):
-        if self.train == 'strong_classifier':
+        if self.train == 'strong_classifier' or self.train == 'classifier':
             scores = self.running_metric.get_scores()
             self.epoch_acc = scores['mf1']
             self.logger.write('Is_training: %s. Epoch %d / %d, epoch_mF1= %.5f\n' %
@@ -343,11 +352,10 @@ class Trainer():
             self.net_pred = self.net(self.net_pred)
         elif self.train == 'vqvae':
             self.vq_loss, self.net_pred, self.perplexity = self.vqvae(batch['image'].to(self.device))
-
         elif self.train == 'classifier':
             vqvae_out = self.vqvae.encoder(batch['image'].to(self.device))
             vqvae_out = self.vqvae.pre_vq_conv(vqvae_out)
-            self.net_pred = self.classifier(vqvae_out)
+            self.net_pred = self.net(vqvae_out)
 
 
     def _backward(self):
@@ -372,6 +380,9 @@ class Trainer():
             self.is_training = True
             self.net.train()  # Set model to training mode
             self.net.to(self.device)
+            if self.train == 'classifier':
+                self.vqvae.eval()
+                self.vqvae.to(self.device)
             # Iterate over data.
             self.logger.write('lr: %0.7f\n' % self.optimizer.param_groups[0]['lr'])
 
