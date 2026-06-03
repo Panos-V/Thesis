@@ -7,7 +7,7 @@ img_size=224
 batch_size=32
 lr=1e-3
 lr_policy=linear
-max_epochs=100
+max_epochs=1000
 optimizer=adam
 reset_lr=0
 
@@ -20,7 +20,7 @@ residual_hiddens=512
 vqvae_loss=mse
 
 num_workers=8
-project_name=commit015_linear
+project_name=LAD_a_1
 data_name=Fitzpatrick17k
 train=strong_classifier
 

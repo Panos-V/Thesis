@@ -70,6 +70,10 @@ if __name__ == '__main__':
     parser.add_argument('--accumulation_steps', default=0, type=int)
     parser.add_argument('--vis_dir', default='vis', type=str)
 
+    # LAD params
+    parser.add_argument('--lad_alpha',default=0.2,type=float,help='Perturbation intensity')
+    parser.add_argument('--walk_steps',default=10,type=int,help='Adversarial walk step count')
+
     args = parser.parse_args()
     
     print(args.gpu_ids)
@@ -80,9 +84,13 @@ if __name__ == '__main__':
 
     #  checkpoints dir
     args.checkpoint_dir = os.path.join(args.checkpoint_root, args.project_name)
+
+    # best checkpoints for models
+    args.best_ckpts = os.path.join(args.checkpoint_root,'best_checkpoints')
+
     os.makedirs(args.checkpoint_dir, exist_ok=True)
     #  visualize dir
-    args.vis_dir = os.path.join('vis', args.project_name)
+    args.vis_dir = os.path.join('vis', args.project_name, args.train)
     os.makedirs(args.vis_dir, exist_ok=True)
 
     train(args)

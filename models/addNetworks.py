@@ -20,6 +20,8 @@ def define_net(args):
                                 num_embeddings=args.vqvae_num_embeddings,
                                 commitment_cost=args.vqvae_commitment_cost)
 
+    classifier_ckpt = simple_classifier.model(in_channels=in_channels, num_classes=args.n_class)
+
     if args.train == 'classifier':
         if os.path.exists(f"{args.checkpoint_dir}/best_ckpt_vqvae.pt"):
             print("Loading pre-trained VQ-VAE encoder...")
@@ -33,8 +35,8 @@ def define_net(args):
             print("Loading models...")
             checkpoint_vq = torch.load(f"{args.checkpoint_dir}/best_ckpt_vqvae.pt")
             checkpoint_class = torch.load(f"{args.checkpoint_dir}/best_ckpt_classifier.pt")
-            vqvae_ckpt.load_state_dict(checkpoint_vq['vqvae_state_dict'])
-            classifier_ckpt.load_state_dict(checkpoint_class['classifier_state_dict'])
+            vqvae_ckpt.load_state_dict(checkpoint_vq['model_strong_state_dict'])
+            classifier_ckpt.load_state_dict(checkpoint_class['model_strong_state_dict'])
         else:
             raise FileNotFoundError("Pre-trained models not found. Please train the VQ-VAE and simple classifier first.")
     else:
@@ -118,8 +120,9 @@ class base_resnet18(Base_Grad_model):
 
         self.avgpool = res.avgpool
 
-        res.fc.out_features = n_classes
-        self.classifier = res.fc.out_features
+        in_features = res.fc.in_features
+        self.classifier = nn.Linear(in_features, n_classes)
+
 
         self.gradients = None
 

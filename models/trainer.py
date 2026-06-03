@@ -18,6 +18,7 @@ class Trainer():
 
         self.dataloaders = dataloaders
         self.args = args
+        self.best_ckpts = args.best_ckpts
         self.lr = args.lr
         self.reset_lr = args.reset_lr
         self.dataset = args.dataset
@@ -26,6 +27,8 @@ class Trainer():
         self.train = args.train
         self.argloss = args.loss
         self.accumlation_steps = args.accumulation_steps
+        self.alpha = args.lad_alpha
+        self.walk_steps =args.walk_steps
         # define network
         self.vqvae,self.classifier = define_net(args=args)
         self.net = define_strong_net(args=args)
@@ -140,7 +143,7 @@ class Trainer():
                 self.vqvae.load_state_dict(checkpoint['vqvae_state_dict'])
             elif self.train == 'classifier':
                 self.classifier.load_state_dict(checkpoint['classifier_state_dict'])
-            elif self.train == 'full':
+            elif self.train == 'strong_classifier':
                 self.net.load_state_dict(checkpoint['model_strong_state_dict'])
             self.optimizer.load_state_dict(checkpoint['net_optimizer_state_dict'])
             self.exp_lr_scheduler.load_state_dict(
@@ -197,12 +200,52 @@ class Trainer():
         imps = (self.global_step + 1) * self.batch_size / self.timer.get_stage_elapsed()
         return imps, est
 
-    def _visualize_pred(self):
-        pred_vis = self.net_pred * 255
+    def _visualize_pred(self,imgs):
+        imgs = imgs.to(self.device)
+        if self.train == 'strong_classifier':
+            gradients = self.net.get_activations_gradient()
+            pooled_gradients = torch.mean(gradients,dim=[0,2,3])
+            activations = self.net.get_activations(imgs).detach()
+
+            channels = activations.shape[1]
+            for i in range(channels):
+                activations[:,i,:,:] *= pooled_gradients[i]
+
+            heatmap = torch.mean(activations, dim=1).squeeze()
+            heatmap = torch.relu(heatmap)
+
+            max_val = torch.max(heatmap)
+            if max_val.item() != 0:
+                heatmap /= max_val
+
+            heatmap = heatmap.unsqueeze(1)
+            resized_heatmap = torch.nn.functional.interpolate(heatmap, size=imgs.shape[2:], mode='bilinear', align_corners=False)
+
+            resized_heatmap = np.uint8(resized_heatmap.cpu().numpy() * 255)
+            grid_heatmap = utils.make_numpy_grid(torch.from_numpy(resized_heatmap))
+            grid_imgs = utils.make_numpy_grid(imgs.cpu())
+            grid_heatmap = cv2.applyColorMap(grid_heatmap, cv2.COLORMAP_JET)
+
+            pred_vis = grid_heatmap * 0.4 + grid_imgs 
+
+        else:
+            pred_vis = self.net_pred * 255
 
         return pred_vis
 
     def _save_checkpoint(self, ckpt_name):
+        if 'best_ckpt' in ckpt_name:
+            torch.save({
+                'epoch_id': self.epoch_id,
+                'best_val_acc': self.best_val_acc,
+                'best_epoch_id': self.best_epoch_id,
+                'model_strong_state_dict': self.net.state_dict(),
+                'net_optimizer_state_dict': self.optimizer.state_dict(),
+                'exp_lr_scheduler_G_state_dict': self.exp_lr_scheduler.state_dict(),
+                'vqvae_state_dict': self.net.state_dict() if self.train == 'vqvae' else None,
+                'classifier_state_dict': self.net.state_dict() if self.train == 'classifier' else None,
+        }, os.path.join(self.best_ckpts, ckpt_name))
+
         torch.save({
             'epoch_id': self.epoch_id,
             'best_val_acc': self.best_val_acc,
@@ -210,8 +253,8 @@ class Trainer():
             'model_strong_state_dict': self.net.state_dict(),
             'net_optimizer_state_dict': self.optimizer.state_dict(),
             'exp_lr_scheduler_G_state_dict': self.exp_lr_scheduler.state_dict(),
-            'vqvae_state_dict': self.vqvae.state_dict() if self.vqvae is not None else None,
-            'classifier_state_dict': self.classifier.state_dict() if self.classifier is not None else None,
+            'vqvae_state_dict': self.net.state_dict() if self.train == 'vqvae' else None,
+            'classifier_state_dict': self.net.state_dict() if self.train == 'classifier' else None,
         }, os.path.join(self.checkpoint_dir, ckpt_name))
 
     def _update_metric(self):
@@ -251,8 +294,8 @@ class Trainer():
         current_score = self.running_fairness.update_cm(
             pr_prot=pred_prot, 
             gt_prot=target_prot,
-            pr_non_prot=pred_non_prot,
-            gt_non_prot=target_non_prot
+            pr_unprot=pred_non_prot,
+            gt_unprot=target_non_prot
         )
         
         return current_score
@@ -271,18 +314,22 @@ class Trainer():
             imps, est = self._timer_update()
             if np.mod(self.batch_id, 100) == 1:
                 if self.train == 'strong_classifier':
-                    message = 'Is_training: %s. [%d,%d][%d,%d], imps: %.2f, est: %.2fh, G_loss: %.5f, running_mf1: %.5f\n, running_EO: %.5f,' \
-                    ' running_DI: %.5f, running_AP: %.5f' %\
+                    message = 'Is_training: %s. [%d,%d][%d,%d], imps: %.2f, est: %.2fh, G_loss: %.5f, running_mf1: %.5f, running_EO: %.5f,' \
+                    ' running_DI: %.5f, running_AP: %.5f\n' %\
                             (self.is_training, self.epoch_id, self.max_num_epochs-1, self.batch_id, m,
                             imps*self.batch_size, est,
                             self.loss.item(), running_acc, running_fairness['EO'], running_fairness['DI'], running_fairness['AP'])
+                    
                 else:
+
                     message = 'Is_training: %s. [%d,%d][%d,%d], imps: %.2f, est: %.2fh, G_loss: %.5f, running_mf1: %.5f\n' %\
                             (self.is_training, self.epoch_id, self.max_num_epochs-1, self.batch_id, m,
                             imps*self.batch_size, est,
                             self.loss.item(), running_acc)
                 self.logger.write(message)
-        elif self.train == 'vqvae':
+
+
+        else:
             imps, est = self._timer_update()
             if np.mod(self.batch_id, 100) == 1:
                 message = 'Is_training: %s. [%d,%d][%d,%d], imps: %.2f, est: %.5fh, VQvae_loss: %.5f, Vq_loss: %.5f, Perplexity: %.5f\n' %\
@@ -290,18 +337,40 @@ class Trainer():
                         imps*self.batch_size, est,
                         self.loss.item(), self.vq_loss, self.perplexity)
                 self.logger.write(message)
+
+
         if self.train == 'classifier':
             return
+        
+
         if np.mod(self.batch_id, 500) == 1:
             vis_input = utils.make_numpy_grid(self.batch['image'][:16])
 
-            vis_pred = utils.make_numpy_grid(self.net_pred[:16])
+            if self.train == 'strong_classifier':
+                vis_perturbation = utils.make_numpy_grid(self.perturbation[:16])
+                vis_pred = self._visualize_pred(self.batch['image'][:16])
+
+            else:
+
+                vis_pred = utils.make_numpy_grid(self.net_pred[:16])
             vis = np.concatenate([vis_input, vis_pred], axis=0)
             vis = np.clip(vis, a_min=0.0, a_max=1.0)
+
             file_name = os.path.join(
                 self.vis_dir, 'istrain_'+str(self.is_training)+'_'+
                               str(self.epoch_id)+'_'+str(self.batch_id)+'.jpg')
+            
             plt.imsave(file_name, vis)
+
+            if self.train == 'strong_classifier':
+                vis = np.concatenate([vis_input, vis_perturbation], axis=0)
+                vis = np.clip(vis, a_min=0.0, a_max=1.0)
+
+                file_name = os.path.join(
+                    self.vis_dir, 'perturbation_'+str(self.is_training)+'_'+
+                                  str(self.epoch_id)+'_'+str(self.batch_id)+'.jpg')
+                
+                plt.imsave(file_name, vis)
 
     def _collect_epoch_states(self):
         if self.train == 'strong_classifier' or self.train == 'classifier':
@@ -309,12 +378,11 @@ class Trainer():
             self.epoch_acc = scores['mf1']
             self.logger.write('Is_training: %s. Epoch %d / %d, epoch_mF1= %.5f\n' %
                 (self.is_training, self.epoch_id, self.max_num_epochs-1, self.epoch_acc))
-            message = ''
         elif self.train == 'vqvae':
             self.logger.write('Is_training: %s. Epoch %d / %d, epoch_VQ_loss= %.5f\n' %
                 (self.is_training, self.epoch_id, self.max_num_epochs-1, self.loss.item()))
 
-    def adversarial_walk(self,vqvae_out,steps=4,a=0.1):
+    def adversarial_walk(self,vqvae_out,steps=10,a=0.2):
         h_delta = vqvae_out.clone().detach().requires_grad_(True)
         e = 1e-4
         
@@ -347,16 +415,17 @@ class Trainer():
         self.batch = batch
 
         if self.train == 'strong_classifier':
-            vqvae_out = self.vqvae(batch['image'].to(self.device))
-            self.net_pred = self.adversarial_walk(vqvae_out)
-            self.net_pred = self.net(self.net_pred)
+            vqvae_out = self.vqvae.encoder(batch['image'].to(self.device))
+            vqvae_out = self.vqvae.pre_vq_conv(vqvae_out)
+            adv_walk, _ = self.adversarial_walk(vqvae_out,steps=self.walk_steps,a=self.alpha)
+            self.perturbation = self.vqvae.decoder(adv_walk)
+            self.net_pred = self.net(self.perturbation)
         elif self.train == 'vqvae':
             self.vq_loss, self.net_pred, self.perplexity = self.vqvae(batch['image'].to(self.device))
         elif self.train == 'classifier':
             vqvae_out = self.vqvae.encoder(batch['image'].to(self.device))
             vqvae_out = self.vqvae.pre_vq_conv(vqvae_out)
             self.net_pred = self.net(vqvae_out)
-
 
     def _backward(self):
 
@@ -383,6 +452,11 @@ class Trainer():
             if self.train == 'classifier':
                 self.vqvae.eval()
                 self.vqvae.to(self.device)
+            if self.train == 'strong_classifier':
+                self.vqvae.eval()
+                self.vqvae.to(self.device)
+                self.classifier.eval()
+                self.classifier.to(self.device)
             # Iterate over data.
             self.logger.write('lr: %0.7f\n' % self.optimizer.param_groups[0]['lr'])
 
@@ -419,8 +493,11 @@ class Trainer():
 
             # Iterate over data.
             for self.batch_id, batch in enumerate(self.dataloaders['val'], 0):
-                with torch.no_grad():
-                    self._forward_pass(batch)
+                if self.train == 'strong_classifier':
+                    self._forward_pass(batch)   # we need gradients to compute the grad-cam
+                else:
+                    with torch.no_grad():
+                        self._forward_pass(batch)
                 self._collect_running_batch_states()
             self._collect_epoch_states()
 

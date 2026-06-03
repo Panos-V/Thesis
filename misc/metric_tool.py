@@ -107,16 +107,16 @@ def cm2F1(confusion_matrix):
     return mean_F1
 
 def cm2fairness(confusion_matrix_prot,confusion_matrix_unprot):
+    
     tp_prot = np.diag(confusion_matrix_prot)
     tp_unprot = np.diag(confusion_matrix_unprot)
-
-    success_prot = tp_prot.sum(axis=1)
-    success_unprot = tp_unprot.sum(axis=1)
-
+    success_prot = confusion_matrix_prot.sum(axis=1)[1]
+    success_unprot = confusion_matrix_unprot.sum(axis=1)[1]
+    
     full_prot = confusion_matrix_prot.sum()
     full_unprot = confusion_matrix_unprot.sum()
 
-    eo = (tp_prot / full_prot) / (tp_unprot / full_unprot + np.finfo(np.float32).eps)
+    eo = (tp_prot.sum() / full_prot) / (tp_unprot.sum() / full_unprot + np.finfo(np.float32).eps)
 
     di = (success_prot / full_prot) / (success_unprot / full_unprot + np.finfo(np.float32).eps)
 
