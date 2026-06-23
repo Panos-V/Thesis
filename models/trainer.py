@@ -337,40 +337,43 @@ class Trainer():
                         imps*self.batch_size, est,
                         self.loss.item(), self.vq_loss, self.perplexity)
                 self.logger.write(message)
-
-
-        if self.train == 'classifier':
-            return
         
-
         if np.mod(self.batch_id, 500) == 1:
             vis_input = utils.make_numpy_grid(self.batch['image'][:16])
+            
+            if self.train == 'classifier':
+                vis_perturbation = utils.make_numpy_grid(self.perturbation[:16])
+                self._visualize_perturbations(vis_input,vis_perturbation)
+                return
 
-            if self.train == 'strong_classifier':
+            if not self.train == 'vqvae':
                 vis_perturbation = utils.make_numpy_grid(self.perturbation[:16])
                 vis_pred = self._visualize_pred(self.batch['image'][:16])
 
             else:
-
                 vis_pred = utils.make_numpy_grid(self.net_pred[:16])
+
             vis = np.concatenate([vis_input, vis_pred], axis=0)
             vis = np.clip(vis, a_min=0.0, a_max=1.0)
 
             file_name = os.path.join(
                 self.vis_dir, 'istrain_'+str(self.is_training)+'_'+
-                              str(self.epoch_id)+'_'+str(self.batch_id)+'.jpg')
+                            str(self.epoch_id)+'_'+str(self.batch_id)+'.jpg')
             
             plt.imsave(file_name, vis)
 
-            if self.train == 'strong_classifier':
-                vis = np.concatenate([vis_input, vis_perturbation], axis=0)
-                vis = np.clip(vis, a_min=0.0, a_max=1.0)
 
-                file_name = os.path.join(
-                    self.vis_dir, 'perturbation_'+str(self.is_training)+'_'+
-                                  str(self.epoch_id)+'_'+str(self.batch_id)+'.jpg')
-                
-                plt.imsave(file_name, vis)
+    def _visualize_perturbations(self,vis_input,vis_perturbation):
+        if not self.train == 'vqvae':
+            
+            vis = np.concatenate([vis_input, vis_perturbation], axis=0)
+            vis = np.clip(vis, a_min=0.0, a_max=1.0)
+
+            file_name = os.path.join(
+                self.vis_dir, 'perturbation_'+str(self.is_training)+'_'+
+                                str(self.epoch_id)+'_'+str(self.batch_id)+'.jpg')
+            
+            plt.imsave(file_name, vis)
 
     def _collect_epoch_states(self):
         if self.train == 'strong_classifier' or self.train == 'classifier':
@@ -389,10 +392,13 @@ class Trainer():
         for _ in range(steps):
             prediction = self.classifier(h_delta)
             prediction = torch.softmax(prediction,dim=1)
-            entropy = -torch.special.entr(prediction+e).sum(dim=1).mean()
+            entropy = torch.special.entr(prediction+e).sum(dim=1).mean()
 
             grad = torch.autograd.grad(entropy, h_delta, create_graph=False)[0]
-            delta = (grad - grad.mean()) / (grad.std() + e)
+            grad = grad.view(grad.size(0),-1)
+            mean = grad.mean(dim=1, keepdim=True).view(-1,1,1,1)
+            std = grad.std(dim=1,keepdim=True).view(-1,1,1,1)
+            delta = (grad - mean / (std + e))
 
             h_delta = (h_delta + a*delta).detach().requires_grad_(True)
 
@@ -415,24 +421,33 @@ class Trainer():
         self.batch = batch
 
         if self.train == 'strong_classifier':
+
             vqvae_out = self.vqvae.encoder(batch['image'].to(self.device))
             vqvae_out = self.vqvae.pre_vq_conv(vqvae_out)
             adv_walk, _ = self.adversarial_walk(vqvae_out,steps=self.walk_steps,a=self.alpha)
             self.perturbation = self.vqvae.decoder(adv_walk)
             self.net_pred = self.net(self.perturbation)
+
         elif self.train == 'vqvae':
+
             self.vq_loss, self.net_pred, self.perplexity = self.vqvae(batch['image'].to(self.device))
+
         elif self.train == 'classifier':
+
             vqvae_out = self.vqvae.encoder(batch['image'].to(self.device))
             vqvae_out = self.vqvae.pre_vq_conv(vqvae_out)
             self.net_pred = self.net(vqvae_out)
+
+            # inference for perturbations
+            adv_walk, _ = self.adversarial_walk(vqvae_out,steps=self.walk_steps,a=self.alpha)
+            self.perturbation = self.vqvae.decoder(adv_walk)
 
     def _backward(self):
 
         if self.train == 'vqvae':
             gt = self.batch['image'].to(self.device).float()
             self.loss = self._pxl_loss(self.net_pred.float(), gt)  + self.vq_loss
-        elif self.train == 'strong_classifier' or self.train == 'classifier':
+        else:
             gt = self.batch['label'].to(self.device).long()
             self.loss = self._pxl_loss(self.net_pred.float(), gt)
         
@@ -493,7 +508,7 @@ class Trainer():
 
             # Iterate over data.
             for self.batch_id, batch in enumerate(self.dataloaders['val'], 0):
-                if self.train == 'strong_classifier':
+                if not self.train == 'vqvae':
                     self._forward_pass(batch)   # we need gradients to compute the grad-cam
                 else:
                     with torch.no_grad():
