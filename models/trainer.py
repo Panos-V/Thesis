@@ -396,7 +396,7 @@ class Trainer():
 
             h_delta = (h_delta + a*delta).detach().requires_grad_(True)
 
-            _,h_delta,perplexity,_ = self.vqvae.vq(h_delta)
+        _,h_delta,perplexity,_ = self.vqvae.vq(h_delta)
 
         return h_delta, perplexity
 
