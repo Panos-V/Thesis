@@ -7,7 +7,7 @@ img_size=224
 batch_size=32
 lr=1e-3
 lr_policy=linear
-max_epochs=100
+max_epochs=110
 optimizer=adam
 reset_lr=0
 
@@ -25,7 +25,7 @@ walk_steps=10
 num_workers=8
 project_name=classifier_testingg
 data_name=Fitzpatrick17k
-train=strong_classifier
+train=classifier
 
 python new_main.py --gpu_ids ${gpus} --checkpoint_root ${checkpoint_root} \
     --img_size ${img_size} --batch_size ${batch_size} --lr ${lr} \

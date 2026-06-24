@@ -338,39 +338,41 @@ class Trainer():
                         self.loss.item(), self.vq_loss, self.perplexity)
                 self.logger.write(message)
 
-
-        if self.train == 'classifier':
-            return
-        
-
         if np.mod(self.batch_id, 500) == 1:
             vis_input = utils.make_numpy_grid(self.batch['image'][:16])
+            
+            if self.train == 'classifier':
+                vis_perturbation = utils.make_numpy_grid(self.perturbation[:16])
+                self._visualize_perturbations(vis_input,vis_perturbation)
+                return
 
-            if self.train == 'strong_classifier':
+            if not self.train == 'vqvae':
                 vis_perturbation = utils.make_numpy_grid(self.perturbation[:16])
                 vis_pred = self._visualize_pred(self.batch['image'][:16])
 
             else:
-
                 vis_pred = utils.make_numpy_grid(self.net_pred[:16])
+
             vis = np.concatenate([vis_input, vis_pred], axis=0)
             vis = np.clip(vis, a_min=0.0, a_max=1.0)
 
             file_name = os.path.join(
                 self.vis_dir, 'istrain_'+str(self.is_training)+'_'+
-                              str(self.epoch_id)+'_'+str(self.batch_id)+'.jpg')
+                            str(self.epoch_id)+'_'+str(self.batch_id)+'.jpg')
             
             plt.imsave(file_name, vis)
 
-            if self.train == 'strong_classifier':
-                vis = np.concatenate([vis_input, vis_perturbation], axis=0)
-                vis = np.clip(vis, a_min=0.0, a_max=1.0)
+    def _visualize_perturbations(self,vis_input,vis_perturbation):
+        if not self.train == 'vqvae':
+            
+            vis = np.concatenate([vis_input, vis_perturbation], axis=0)
+            vis = np.clip(vis, a_min=0.0, a_max=1.0)
 
-                file_name = os.path.join(
-                    self.vis_dir, 'perturbation_'+str(self.is_training)+'_'+
-                                  str(self.epoch_id)+'_'+str(self.batch_id)+'.jpg')
-                
-                plt.imsave(file_name, vis)
+            file_name = os.path.join(
+                self.vis_dir, 'perturbation_'+str(self.is_training)+'_'+
+                                str(self.epoch_id)+'_'+str(self.batch_id)+'.jpg')
+            
+            plt.imsave(file_name, vis)
 
     def _collect_epoch_states(self):
         if self.train == 'strong_classifier' or self.train == 'classifier':
