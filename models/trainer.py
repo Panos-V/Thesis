@@ -338,7 +338,7 @@ class Trainer():
                         self.loss.item(), self.vq_loss, self.perplexity)
                 self.logger.write(message)
 
-        if np.mod(self.batch_id, 500) == 1:
+        if np.mod(self.batch_id, 300) == 1:
             vis_input = utils.make_numpy_grid(self.batch['image'][:16])
             
             if self.train == 'classifier':
@@ -428,7 +428,7 @@ class Trainer():
             vqvae_out = self.vqvae.encoder(batch['image'].to(self.device))
             vqvae_out = self.vqvae.pre_vq_conv(vqvae_out)
             self.net_pred = self.net(vqvae_out)
-            adv_walk, _ = self.adversarial_walk(vqvae_out,steps=self.steps,a=self.alpha)
+            adv_walk, _ = self.adversarial_walk(vqvae_out,steps=self.walk_steps,a=self.alpha)
             self.perturbation = self.vqvae.decoder(adv_walk)
 
     def _backward(self):
