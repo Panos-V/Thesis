@@ -428,6 +428,8 @@ class Trainer():
             vqvae_out = self.vqvae.encoder(batch['image'].to(self.device))
             vqvae_out = self.vqvae.pre_vq_conv(vqvae_out)
             self.net_pred = self.net(vqvae_out)
+            adv_walk, _ = self.adversarial_walk(vqvae_out,steps=self.steps,a=self.alpha)
+            self.perturbation = self.vqvae.decoder(adv_walk)
 
     def _backward(self):
 
