@@ -497,7 +497,7 @@ class Trainer():
 
             # Iterate over data.
             for self.batch_id, batch in enumerate(self.dataloaders['val'], 0):
-                if self.train == 'strong_classifier':
+                if not self.train == 'vqvae':
                     self._forward_pass(batch)   # we need gradients to compute the grad-cam
                 else:
                     with torch.no_grad():
