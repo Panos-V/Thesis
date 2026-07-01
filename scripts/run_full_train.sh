@@ -19,7 +19,7 @@ residual_layers=6
 residual_hiddens=512
 vqvae_loss=mse
 
-lad_alpha=1
+lad_alpha=0.1
 walk_steps=30
 
 num_workers=8
