@@ -7,8 +7,8 @@ img_size=224
 batch_size=32
 lr=1e-3
 lr_policy=linear
-max_epochs=110
-optimizer=adam
+max_epochs=30
+optimizer=sgd
 reset_lr=0
 
 embedding_dim=128
@@ -19,11 +19,11 @@ residual_layers=6
 residual_hiddens=512
 vqvae_loss=mse
 
-lad_alpha=0.4
-walk_steps=10
+lad_alpha=1
+walk_steps=30
 
 num_workers=8
-project_name=classifier_testingg
+project_name=classifier_test7
 data_name=Fitzpatrick17k
 train=classifier
 
