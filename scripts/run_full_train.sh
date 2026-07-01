@@ -23,7 +23,7 @@ lad_alpha=1
 walk_steps=30
 
 num_workers=8
-project_name=classifier_test7
+project_name=classifier_test8
 data_name=Fitzpatrick17k
 train=classifier
 

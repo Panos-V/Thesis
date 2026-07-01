@@ -394,7 +394,9 @@ class Trainer():
             entropy = -torch.special.entr(prediction+e).sum(dim=1).mean()
 
             grad = torch.autograd.grad(entropy, h_delta, create_graph=False)[0]
-            delta = (grad - grad.mean()) / (grad.std() + e)
+            #delta = (grad - grad.mean()) / (grad.std() + e)
+
+            delta = torch.sign(grad)   # really small grad due to std. Try sign
 
             h_delta = (h_delta + a*delta).detach().requires_grad_(True)
 
